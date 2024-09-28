@@ -1,9 +1,9 @@
+import CTA from '@/components/cta';
+import FAQ from '@/components/faq';
+import Features from '@/components/features';
+import Hero from '@/components/hero';
+import Pricing from '@/components/pricing';
 import { Metadata } from 'next';
-import CTA from '../../components/cta';
-import FAQ from '../../components/faq';
-import Features from '../../components/features';
-import Hero from '../../components/hero';
-import Pricing from '../../components/pricing';
 
 export const metadata: Metadata = {
   title: 'OpenPreview',

@@ -91,12 +91,17 @@ export function Globe({ globeConfig, data }: WorldProps) {
     ...globeConfig,
   };
 
+  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+
   useEffect(() => {
     if (globeRef.current) {
+      const globeRadius = globeRef.current.getGlobeRadius();
+      globeRef.current.scale.set(1, 1, 1);
       _buildData();
       _buildMaterial();
+      _initializeGlobe();
     }
-  }, [globeRef.current]);
+  }, [globeRef.current, data, globeConfig]);
 
   const _buildMaterial = () => {
     if (!globeRef.current) return;
@@ -148,11 +153,26 @@ export function Globe({ globeConfig, data }: WorldProps) {
     setGlobeData(filteredPoints);
   };
 
+  const _initializeGlobe = () => {
+    if (!globeRef.current) return;
+
+    globeRef.current
+      .hexPolygonsData(countries.features)
+      .hexPolygonResolution(isMobile ? 2 : 3)
+      .hexPolygonMargin(0.7)
+      .showAtmosphere(defaultProps.showAtmosphere)
+      .atmosphereColor(defaultProps.atmosphereColor)
+      .atmosphereAltitude(defaultProps.atmosphereAltitude)
+      .hexPolygonColor(() => defaultProps.polygonColor);
+
+    startAnimation();
+  };
+
   useEffect(() => {
     if (globeRef.current && globeData) {
       globeRef.current
         .hexPolygonsData(countries.features)
-        .hexPolygonResolution(3)
+        .hexPolygonResolution(isMobile ? 2 : 3)
         .hexPolygonMargin(0.7)
         .showAtmosphere(defaultProps.showAtmosphere)
         .atmosphereColor(defaultProps.atmosphereColor)
@@ -162,7 +182,7 @@ export function Globe({ globeConfig, data }: WorldProps) {
         });
       startAnimation();
     }
-  }, [globeData]);
+  }, [globeData, isMobile]);
 
   const startAnimation = () => {
     if (!globeRef.current || !globeData) return;
@@ -237,7 +257,7 @@ export function WebGLRendererConfig() {
     gl.setPixelRatio(window.devicePixelRatio);
     gl.setSize(size.width, size.height);
     gl.setClearColor(0xffaaff, 0);
-  }, []);
+  }, [gl, size]);
 
   return null;
 }
@@ -246,14 +266,28 @@ export function World(props: WorldProps) {
   const { globeConfig } = props;
   const scene = new Scene();
   scene.fog = new Fog(0xffffff, 400, 2000);
-  const isMobile =
-    typeof window !== 'undefined' &&
-    /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+  
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const updateSize = () => {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    
+    window.addEventListener('resize', updateSize);
+    updateSize();
+    
+    return () => {
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
   return (
     <Canvas
       className={isMobile ? 'canvas' : ''}
       scene={scene}
-      camera={new PerspectiveCamera(50, aspect, 180, 1800)}
+      camera={new PerspectiveCamera(50, size.width / size.height, 180, 1800)}
     >
       <WebGLRendererConfig />
       <ambientLight color={globeConfig.ambientLight} intensity={0.6} />

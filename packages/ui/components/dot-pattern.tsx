@@ -1,6 +1,6 @@
-import { useId } from "react";
+import { useId } from 'react';
 
-import { cn } from "@ui/lib/utils";
+import { cn } from '@openpreview/ui/lib/utils';
 
 interface DotPatternProps {
   width?: any;
@@ -30,7 +30,7 @@ export function DotPattern({
     <svg
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-0 h-full w-full fill-neutral-400/80",
+        'pointer-events-none absolute inset-0 h-full w-full fill-neutral-400/80',
         className,
       )}
       {...props}

@@ -4,16 +4,20 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev": "concurrently \"supabase start\" \"turbo dev\"",
     "lint": "turbo lint",
     "clean": "turbo clean",
     "start": "turbo run start",
-    "prettier": "prettier --write --ignore-path .gitignore ."
+    "prettier": "prettier --write --ignore-path .gitignore .",
+    "types": "supabase gen types --lang=typescript --local > ./supabase/src/supabase.types.ts",
+    "seed": "bunx supabase db dump -f supabase/seed.sql --data-only --local"
   },
   "devDependencies": {
+    "@openpreview/eslint-config-custom": "*",
     "@turbo/gen": "^2.1.2",
+    "@types/morgan": "^1.9.9",
+    "concurrently": "^9.0.1",
     "eslint": "^9.11.0",
-    "eslint-config-custom": "*",
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.6.6",
     "syncpack": "^13.0.0",
@@ -22,6 +26,10 @@
   "packageManager": "bun@1.1.29",
   "workspaces": [
     "apps/*",
-    "packages/*"
-  ]
+    "packages/*",
+    "supabase"
+  ],
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  }
 }

@@ -1,0 +1,38 @@
+{
+  "name": "@openpreview/api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/app.ts",
+  "private": true,
+  "scripts": {
+    "start": "ts-node src/app.ts",
+    "build": "tsc",
+    "serve": "node dist/app.js",
+    "dev": "nodemon src/app.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.8",
+    "@types/cors": "^2.8.17",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.17.1",
+    "helmet": "^4.6.0",
+    "joi": "^17.4.1",
+    "monk": "^7.3.3",
+    "morgan": "^1.10.0",
+    "nodenv": "^0.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.31.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.23.4",
+    "nodemon": "^2.0.12",
+    "@openpreview/tsconfig": "*",
+    "@openpreview/eslint-config-custom": "*",
+    "@openpreview/supabase": "*",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "typescript": "^5.4.2"
+  }
+}

@@ -1,14 +1,17 @@
 'use client';
 
-import { Button } from '@ui/components/button';
-import { DotPattern } from '@ui/components/dot-pattern';
-import { cn } from '@ui/lib/utils';
+import { Button } from '@openpreview/ui/components/button';
+import { DotPattern } from '@openpreview/ui/components/dot-pattern';
+import { cn } from '@openpreview/ui/lib/utils';
 import dynamic from 'next/dynamic';
 import { sampleArcs } from './default';
 
-const World = dynamic(() => import('@ui/components/globe').then(m => m.World), {
-  ssr: false,
-});
+const World = dynamic(
+  () => import('@openpreview/ui/components/globe').then(m => m.World),
+  {
+    ssr: false,
+  },
+);
 
 export default function Hero() {
   const globeConfig = {
@@ -40,8 +43,9 @@ export default function Hero() {
           OpenPreview
         </h1>
         <p className="text-muted-foreground mx-auto mb-6 max-w-md text-lg">
-          OpenPreview is an open-source toolbar for live website previews,
-          comments, and seamless collaboration—anytime, anywhere.
+          OpenPreview is an open-source toolkit for streamlined development,
+          collaborative comments, and efficient project management—
+          <em>anytime, anywhere</em>.
         </p>
         <div className="flex justify-center gap-4">
           <Button size="lg">Get Started</Button>
@@ -50,9 +54,8 @@ export default function Hero() {
           </Button>
         </div>
       </div>
-      <div className="relative h-[400px] w-full max-w-5xl md:h-[600px]">
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-40 w-full select-none" />
-
+      <div className="relative aspect-[4/3] w-full max-w-5xl sm:aspect-[16/9]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-1/4 w-full select-none" />
         <div className="absolute inset-0 z-10">
           <World data={sampleArcs} globeConfig={globeConfig} />
         </div>

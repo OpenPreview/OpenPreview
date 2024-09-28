@@ -18,6 +18,32 @@
     "start": {
       "cache": false,
       "persistent": true
+    }, 
+    "@openpreview/supabase#start": {
+      "outputs": [],
+      "cache": false
+    },
+    "@openpreview/supabase#reset": {
+      "outputs": [],
+      "cache": false
+    },
+    "@openpreview/supabase#test": {
+      "outputs": [],
+      "cache": false
+    },
+    "@openpreview/supabase#lint": {
+      "outputs": [],
+      "cache": false
+    },
+    "@openpreview/supabase#deploy": {
+      "outputs": [],
+      "cache": false
     }
-  }
+  },
+  "globalEnv": [
+    "NODE_ENV",
+    "SUPABASE_URL",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_KEY"
+  ]
 }
