@@ -1,11 +1,13 @@
-import { Button } from '@ui/components/button';
-import { DotPattern } from '@ui/components/dot-pattern';
-import { Toaster } from '@ui/components/toaster';
-import { cn } from '@ui/lib/utils';
+import { createClient } from '@lib/server';
+import { Button } from '@openpreview/ui/components/button';
+import { DotPattern } from '@openpreview/ui/components/dot-pattern';
+import { Toaster } from '@openpreview/ui/components/toaster';
+import { cn } from '@openpreview/ui/lib/utils';
 import { ArrowLeft } from 'lucide-react';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -13,11 +15,30 @@ const inter = Inter({
   display: 'swap',
 });
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (data?.onboarding_completed) {
+      redirect('/dashboard');
+    } else {
+      redirect('/onboarding');
+    }
+  }
+
   return (
     <body
       className={`${inter.variable} font-inter bg-gray-50 tracking-tight text-gray-900 antialiased`}

@@ -53,9 +53,7 @@
   .canvas {
     touch-action: auto !important;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }

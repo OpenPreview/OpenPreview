@@ -1,14 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@ui/components/button';
+import { useSupabaseBrowser } from '@lib/client';
+import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@ui/components/card';
+} from '@openpreview/ui/components/card';
 import {
   Form,
   FormControl,
@@ -16,11 +17,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@ui/components/form';
-import { Input } from '@ui/components/input';
-import { useToast } from '@ui/hooks/use-toast';
+} from '@openpreview/ui/components/form';
+import { Input } from '@openpreview/ui/components/input';
+import { useToast } from '@openpreview/ui/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -46,6 +48,8 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
+  const supabase = useSupabaseBrowser();
 
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
@@ -60,19 +64,40 @@ export default function SignUpPage() {
   async function onSubmit(data: SignUpFormValues) {
     setIsLoading(true);
     try {
-      // TODO: Implement sign-up logic here
-      console.log(data);
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
       toast({
         title: 'Account created',
-        description: 'Your account has been successfully created.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
         description:
-          'An error occurred while creating your account. Please try again.',
-        variant: 'destructive',
+          'Your account has been successfully created. Please check your email for verification.',
       });
+      router.push('/onboarding');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast({
+          title: 'Sign Up Failed',
+          description:
+            error.message ||
+            'An error occurred while creating your account. Please try again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sign Up Failed',
+          description: 'An unexpected error occurred. Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsLoading(false);
     }

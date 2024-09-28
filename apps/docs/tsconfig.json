@@ -1,5 +1,5 @@
 {
-  "extends": "@opv/tsconfig/nextjs.json",
+  "extends": "@openpreview/tsconfig/nextjs.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }]
   },

@@ -1,14 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@ui/components/button';
+import { useSupabaseBrowser } from '@lib/client';
+import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@ui/components/card';
+} from '@openpreview/ui/components/card';
 import {
   Form,
   FormControl,
@@ -17,16 +18,22 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@ui/components/form';
-import { Input } from '@ui/components/input';
+} from '@openpreview/ui/components/form';
+import { Input } from '@openpreview/ui/components/input';
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-} from '@ui/components/input-otp';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@ui/components/tabs';
-import { useToast } from '@ui/hooks/use-toast';
+} from '@openpreview/ui/components/input-otp';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@openpreview/ui/components/tabs';
+import { useToast } from '@openpreview/ui/hooks/use-toast';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -146,7 +153,9 @@ export default function LoginPage() {
   );
   const [otpRequested, setOtpRequested] = useState(false);
   const [otpEmail, setOtpEmail] = useState('');
+  const supabase = useSupabaseBrowser();
   const { toast } = useToast();
+  const router = useRouter();
 
   const passwordForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -156,18 +165,30 @@ export default function LoginPage() {
   async function onPasswordSubmit(data: LoginFormValues) {
     setIsLoading(true);
     try {
-      // TODO: Implement password login logic here
-      console.log(data);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+      if (error) throw error;
       toast({
         title: 'Login successful',
         description: 'You have been successfully logged in.',
       });
+      router.push('/dashboard'); // Redirect to dashboard after successful login
     } catch (error) {
-      toast({
-        title: 'Login failed',
-        description: 'An error occurred during login. Please try again.',
-        variant: 'destructive',
-      });
+      if (error instanceof Error) {
+        toast({
+          title: 'Login failed',
+          description: error.message || 'An error occurred during login. Please try again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Login failed',
+          description: 'An unexpected error occurred. Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -176,8 +197,10 @@ export default function LoginPage() {
   async function onOtpRequest(data: OtpRequestFormValues) {
     setIsLoading(true);
     try {
-      // TODO: Implement OTP request logic here
-      console.log(data);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: data.email,
+      });
+      if (error) throw error;
       setOtpEmail(data.email);
       setOtpRequested(true);
       toast({
@@ -185,30 +208,51 @@ export default function LoginPage() {
         description: 'A one-time password has been sent to your email.',
       });
     } catch (error) {
-      toast({
-        title: 'OTP Request Failed',
-        description: 'Failed to send OTP. Please try again.',
-        variant: 'destructive',
-      });
+      if (error instanceof Error) {
+        toast({
+          title: 'OTP Request Failed',
+          description: error.message || 'Failed to send OTP. Please try again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'OTP Request Failed',
+          description: 'An unexpected error occurred. Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   }
 
-  function onOtpVerify(data: OtpVerifyFormValues) {
+  async function onOtpVerify(data: OtpVerifyFormValues) {
     try {
-      // TODO: Implement OTP verification logic here
-      console.log(data);
+      const { error } = await supabase.auth.verifyOtp({
+        email: otpEmail,
+        token: data.pin,
+        type: 'magiclink',
+      });
+      if (error) throw error;
       toast({
         title: 'OTP Verified',
         description: 'Your one-time password has been verified successfully.',
       });
+      router.push('/dashboard'); // Redirect to dashboard after successful verification
     } catch (error) {
-      toast({
-        title: 'OTP Verification Failed',
-        description: 'Failed to verify OTP. Please try again.',
-        variant: 'destructive',
-      });
+      if (error instanceof Error) {
+        toast({
+          title: 'OTP Verification Failed',
+          description: error.message || 'Failed to verify OTP. Please try again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'OTP Verification Failed',
+          description: 'An unexpected error occurred. Please try again.',
+          variant: 'destructive',
+        });
+      }
     }
   }
 

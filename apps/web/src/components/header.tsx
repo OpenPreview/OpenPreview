@@ -1,13 +1,17 @@
 'use client';
 
-import { Button } from '@ui/components/button';
+import { Button } from '@openpreview/ui/components/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@ui/components/dropdown-menu';
-import { Sheet, SheetContent, SheetTrigger } from '@ui/components/sheet';
+} from '@openpreview/ui/components/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@openpreview/ui/components/sheet';
 import { ArrowUpRight } from 'lucide-react';
 
 import { ChevronDown, Menu } from 'lucide-react';
@@ -57,8 +61,16 @@ const headerData: headerType = {
     },
   ],
   buttons: [
-    { label: 'Login', variant: 'ghost', href: '/login' },
-    { label: 'Register', variant: 'default', href: '/register' },
+    {
+      label: 'Login',
+      variant: 'ghost',
+      href: `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login`,
+    },
+    {
+      label: 'Register',
+      variant: 'default',
+      href: `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/register`,
+    },
   ],
 };
 
