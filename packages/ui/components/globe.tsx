@@ -246,7 +246,9 @@ export function World(props: WorldProps) {
   const { globeConfig } = props;
   const scene = new Scene();
   scene.fog = new Fog(0xffffff, 400, 2000);
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isMobile =
+    typeof window !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
   return (
     <Canvas
       className={isMobile ? 'canvas' : ''}

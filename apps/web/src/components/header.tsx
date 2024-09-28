@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@ui/components/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@ui/components/sheet';
+import { ArrowUpRight } from 'lucide-react';
 
 import { ChevronDown, Menu } from 'lucide-react';
 import Image from 'next/image';
@@ -22,8 +23,13 @@ type headerType = {
   navItems: {
     label: string;
     href: string;
+    external?: boolean;
     hasDropdown?: boolean;
-    dropdownItems?: { label: string; href: string }[];
+    dropdownItems?: {
+      label: string;
+      href: string;
+      external?: boolean;
+    }[];
   }[];
   buttons: {
     label: string;
@@ -38,10 +44,17 @@ const headerData: headerType = {
     logo: <Image src={'/images/logo.png'} alt="Logo" width={40} height={40} />,
   },
   navItems: [
-    { label: 'Pricing', href: '/pricing' },
-    { label: 'Customers', href: '/customers' },
-    { label: 'Blog', href: '/blog' },
-    { label: 'Docs', href: '/docs' },
+    { label: 'Pricing', href: '/#pricing' },
+    { label: 'Features', href: '/#features' },
+    { label: 'FAQ', href: '/#faq' },
+    {
+      label: 'Docs',
+      href:
+        process.env.NODE_ENV === 'development'
+          ? 'http://localhost:3001'
+          : 'https://docs.openpreview.dev',
+      external: true,
+    },
   ],
   buttons: [
     { label: 'Login', variant: 'ghost', href: '/login' },
@@ -91,9 +104,11 @@ export default function Header() {
                   ) : (
                     <Link
                       href={item.href}
-                      className="text-foreground hover:text-foreground/80 text-base font-medium"
+                      target={item.external ? '_blank' : undefined}
+                      className="text-foreground hover:text-foreground/80 flex items-center gap-1 text-base font-medium"
                     >
                       {item.label}
+                      {item.external && <ArrowUpRight className="h-4 w-4" />}
                     </Link>
                   )}
                 </div>
@@ -143,6 +158,9 @@ export default function Header() {
                                 <Link
                                   key={dropdownIndex}
                                   href={dropdownItem.href}
+                                  target={
+                                    dropdownItem.external ? '_blank' : undefined
+                                  }
                                   className="text-foreground hover:text-foreground/80 block text-base"
                                 >
                                   {dropdownItem.label}

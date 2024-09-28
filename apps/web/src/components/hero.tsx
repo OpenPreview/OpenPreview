@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@ui/components/button';
+import { DotPattern } from '@ui/components/dot-pattern';
+import { cn } from '@ui/lib/utils';
 import dynamic from 'next/dynamic';
 import { sampleArcs } from './default';
 
@@ -31,7 +33,6 @@ export default function Hero() {
     autoRotate: true,
     autoRotateSpeed: 0.5,
   };
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   return (
     <div className="relative flex w-full flex-col items-center justify-center gap-8">
       <div className="w-full max-w-xl px-4 text-center">
@@ -39,8 +40,8 @@ export default function Hero() {
           OpenPreview
         </h1>
         <p className="text-muted-foreground mx-auto mb-6 max-w-md text-lg">
-          OpenPreview is a powerful preview domain toolbar for websites. Add
-          comments and collaborate directly on your web pages.
+          OpenPreview is an open-source toolbar for live website previews,
+          comments, and seamless collaboration—anytime, anywhere.
         </p>
         <div className="flex justify-center gap-4">
           <Button size="lg">Get Started</Button>
@@ -56,6 +57,12 @@ export default function Hero() {
           <World data={sampleArcs} globeConfig={globeConfig} />
         </div>
       </div>
+      <DotPattern
+        className={cn(
+          'absolute inset-0 -z-10 h-full w-full',
+          '[mask-image:radial-gradient(500px_circle_at_center,white,transparent)]',
+        )}
+      />
     </div>
   );
 }
