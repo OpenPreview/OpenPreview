@@ -31,7 +31,7 @@ export default function Hero() {
     autoRotate: true,
     autoRotateSpeed: 0.5,
   };
-
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   return (
     <div className="relative flex w-full flex-col items-center justify-center gap-8">
       <div className="w-full max-w-xl px-4 text-center">

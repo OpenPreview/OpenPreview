@@ -50,7 +50,9 @@
     --radius: 1rem;
   }
 
-
+  .canvas {
+    touch-action: auto !important;
+  }
 }
 
 @layer base {
