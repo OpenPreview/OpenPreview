@@ -2,7 +2,6 @@
 
 import { Button } from '@ui/components/button';
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
 import { sampleArcs } from './default';
 
 const World = dynamic(() => import('@ui/components/globe').then(m => m.World), {
@@ -10,12 +9,6 @@ const World = dynamic(() => import('@ui/components/globe').then(m => m.World), {
 });
 
 export default function Hero() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const globeConfig = {
     pointSize: 4,
     globeColor: '#062056',
@@ -58,11 +51,10 @@ export default function Hero() {
       </div>
       <div className="relative h-[400px] w-full max-w-5xl md:h-[600px]">
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-40 w-full select-none" />
-        {mounted && (
-          <div className="absolute inset-0 z-10">
-            <World data={sampleArcs} globeConfig={globeConfig} />
-          </div>
-        )}
+
+        <div className="absolute inset-0 z-10">
+          <World data={sampleArcs} globeConfig={globeConfig} />
+        </div>
       </div>
     </div>
   );
