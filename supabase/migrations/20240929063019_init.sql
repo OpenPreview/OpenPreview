@@ -4,6 +4,10 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Create public buckets
+INSERT INTO storage.buckets (id, name, public) VALUES ('organization_logos', 'organization_logos', true);
+INSERT INTO storage.buckets (id, name, public) VALUES ('user_avatars', 'user_avatars', true);
+
 create policy "Anyone can update organization logos."
 on "storage"."objects"
 as permissive
@@ -52,6 +56,3 @@ for update
 to public
 using (((bucket_id = 'user_avatars'::text) AND (auth.uid() = owner)))
 with check ((bucket_id = 'user_avatars'::text));
-
-
-
