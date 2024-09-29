@@ -11,14 +11,9 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') || '/'
 
   // Create redirect link without the secret token
-  const redirectTo = request.nextUrl.clone()
-  redirectTo.pathname = next
+  const redirectTo = new URL(next, process.env.NEXT_PUBLIC_APP_URL)
   redirectTo.searchParams.delete('token')
   redirectTo.searchParams.delete('type')
-
-  console.log('token', token)
-  console.log('type', type)
-  console.log('next', next)
 
   if (token && type) {
     const supabase = createClient()
@@ -29,11 +24,11 @@ export async function GET(request: NextRequest) {
     })
     if (!error) {
       redirectTo.searchParams.delete('next')
-      return NextResponse.redirect(redirectTo)
+      return NextResponse.redirect(redirectTo.toString())
     }
   }
 
   // return the user to an error page with some instructions
   redirectTo.pathname = '/error'
-  return NextResponse.redirect(redirectTo)
+  return NextResponse.redirect(redirectTo.toString())
 }
