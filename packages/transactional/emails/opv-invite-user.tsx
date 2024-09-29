@@ -29,7 +29,7 @@ interface OpenPreviewInviteUserEmailProps {
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-  ? `https://${process.env.NEXT_PUBLIC_APP_URL}`
+  ? `${process.env.NEXT_PUBLIC_APP_URL}`
   : '';
 
 export const OpenPreviewInviteUserEmail = ({
@@ -39,7 +39,7 @@ export const OpenPreviewInviteUserEmail = ({
   invitedByEmail = 'bukinoshita@example.com',
   teamName = 'My Project',
   teamImage = `${baseUrl}/static/OpenPreview-team.png`,
-  inviteLink = 'https://OpenPreview.com/teams/invite/foo',
+  inviteLink = 'https://OpenPreview.dev/teams/invite/foo',
   inviteFromIp = '204.13.186.218',
   inviteFromLocation = 'São Paulo, Brazil',
 }: OpenPreviewInviteUserEmailProps) => {
@@ -82,7 +82,7 @@ export const OpenPreviewInviteUserEmail = ({
               <Row>
                 <Column align="right">
                   <Img
-                    className="rounded-full"
+                    className="rounded-full border-2 border-solid border-[#eaeaea]"
                     src={userImage}
                     width="64"
                     height="64"
@@ -98,7 +98,7 @@ export const OpenPreviewInviteUserEmail = ({
                 </Column>
                 <Column align="left">
                   <Img
-                    className="rounded-full"
+                    className="rounded-full border-2 border-solid border-[#eaeaea]"
                     src={teamImage}
                     width="64"
                     height="64"
