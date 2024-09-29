@@ -126,6 +126,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
 
   // Send the invitation email using Resend
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  console.log(inviteData.properties);
   await resend.emails.send({
     from: 'OpenPreview <noreply@investa.so>',
     to: email,
