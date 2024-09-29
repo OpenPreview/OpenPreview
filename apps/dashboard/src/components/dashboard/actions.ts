@@ -107,7 +107,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
   // Get approximate location from IP using a geolocation service
   let location = 'Unknown';
   try {
-    const response = await fetch(`https://ipapi.co/${ip}/jZson/`);
+    const response = await fetch(`https://ipapi.co/${ip}/json/`);
     const data = await response.json();
     location = `${data.city}, ${data.country_name}`;
   } catch (error) {
