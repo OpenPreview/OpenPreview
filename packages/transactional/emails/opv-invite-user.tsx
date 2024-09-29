@@ -17,15 +17,16 @@ import {
 } from '@react-email/components';
 
 interface OpenPreviewInviteUserEmailProps {
-  username?: string;
-  userImage?: string;
-  invitedByUsername?: string;
-  invitedByEmail?: string;
-  teamName?: string;
-  teamImage?: string;
-  inviteLink?: string;
-  inviteFromIp?: string;
-  inviteFromLocation?: string;
+  username: string;
+  userImage: string;
+  invitedByUsername: string;
+  invitedByEmail: string;
+  teamName: string;
+  role: string;
+  teamImage: string;
+  inviteLink: string;
+  inviteFromIp: string;
+  inviteFromLocation: string;
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL
@@ -33,11 +34,12 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   : '';
 
 export const OpenPreviewInviteUserEmail = ({
-  username = 'zenorocha',
+  username = 'Jane Doe',
   userImage = `${baseUrl}/static/OpenPreview-user.png`,
-  invitedByUsername = 'bukinoshita',
-  invitedByEmail = 'bukinoshita@example.com',
+  invitedByUsername = 'John Doe',
+  invitedByEmail = 'john.doe@example.com',
   teamName = 'My Project',
+  role = 'Viewer',
   teamImage = `${baseUrl}/static/OpenPreview-team.png`,
   inviteLink = 'https://OpenPreview.dev/teams/invite/foo',
   inviteFromIp = '204.13.186.218',
@@ -76,7 +78,7 @@ export const OpenPreviewInviteUserEmail = ({
                 {invitedByEmail}
               </Link>
               ) has invited you to the <strong>{teamName}</strong> team on{' '}
-              <strong>OpenPreview</strong>.
+              <strong>OpenPreview</strong> as <strong>{role}</strong>.
             </Text>
             <Section>
               <Row>
