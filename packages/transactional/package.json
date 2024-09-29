@@ -1,0 +1,13 @@
+{
+    "name": "@openpreview/transactional",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "email dev -p 3004",
+        "export": "email export"
+    },
+    "dependencies": {
+        "@react-email/components": "latest",
+        "browserslist": "latest",
+        "react-email": "latest"
+    }
+}

@@ -3,7 +3,12 @@ import 'server-only';
 
 import { createAdminClient } from '@lib/admin';
 import { createClient } from '@lib/server';
+import { OpenPreviewInviteUserEmail } from '@openpreview/transactional/emails/opv-invite-user';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function inviteMember(organizationSlug: string, email: string, role: string) {
   const supabase = createClient();
@@ -12,46 +17,136 @@ export async function inviteMember(organizationSlug: string, email: string, role
   // First, get the organization ID
   const { data: organization, error: orgError } = await supabase
     .from('organizations')
-    .select('id')
+    .select('id, name, logo_url')
     .eq('slug', organizationSlug)
     .single();
 
   if (orgError) {
     console.error('Error fetching organization:', orgError);
-    throw new Error('Failed to fetch organization');
+    return { success: false, error: 'Failed to fetch organization' };
   }
 
   try {
-    // Generate the redirect URL for the invitation
-    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}`;
+    // Check if the user is already a member
+    const { data: existingMember, error: memberError } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organization.id)
+      .eq('user:users(email)', email)
+      .single();
 
-    // Invite the user to the platform using the admin client
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, { redirectTo });
-
-    if (inviteError) {
-      throw inviteError;
+    if (existingMember) {
+      return { success: false, error: 'User is already a member of this organization' };
     }
 
-    // Create the organization invitation
-    const { error: orgInviteError } = await supabase
+    // Check if there's a pending invite
+    const { data: existingInvite, error: inviteError } = await supabase
       .from('organization_invitations')
-      .insert({
-        organization_id: organization.id,
-        email,
-        role,
-        invited_by: (await supabase.auth.getUser()).data.user?.id,
-      });
+      .select('id')
+      .eq('organization_id', organization.id)
+      .eq('email', email)
+      .is('accepted_at', null)
+      .single();
 
-    if (orgInviteError) {
-      throw orgInviteError;
+    if (inviteError && inviteError.code !== 'PGRST116') {
+      return { success: false, error: inviteError.message };
     }
 
-    revalidatePath(`/${organizationSlug}/settings/members`);
-    return { success: true };
+    if (existingInvite) {
+      // Reinvite the user
+      const { error: updateError } = await supabase
+        .from('organization_invitations')
+        .update({ role, invited_by: (await supabase.auth.getUser()).data.user?.id })
+        .eq('id', existingInvite.id);
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+    } else {
+      // Create a new invitation
+      const { error: newInviteError } = await supabase
+        .from('organization_invitations')
+        .insert({
+          organization_id: organization.id,
+          email,
+          role,
+          invited_by: (await supabase.auth.getUser()).data.user?.id,
+        });
+
+      if (newInviteError) {
+        return { success: false, error: newInviteError.message };
+      }
+    }
+
+    // Send the invitation email
+    return await sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug);
   } catch (error) {
     console.error('Error inviting member:', error);
-    return { success: false, error: 'Failed to invite member' };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to invite member' };
   }
+}
+
+async function sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug) {
+  // Generate the invite link using Supabase
+  const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
+    type: 'invite',
+    email: email,
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}`,
+    },
+  });
+
+  if (inviteError) {
+    throw inviteError;
+  }
+
+  // Get IP from request headers
+  const headersList = headers();
+  const ip = headersList.get('x-forwarded-for') || 'Unknown';
+
+  // Get approximate location from IP using a geolocation service
+  let location = 'Unknown';
+  try {
+    const response = await fetch(`https://ipapi.co/${ip}/jZson/`);
+    const data = await response.json();
+    location = `${data.city}, ${data.country_name}`;
+  } catch (error) {
+    console.error('Error fetching location:', error);
+  }
+
+  // Fetch user data from the users table
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('id, avatar_url')
+    .eq('id', (await supabase.auth.getUser()).data.user?.id)
+    .single();
+
+  if (userError) {
+    console.error('Error fetching user data:', userError);
+    throw userError;
+  }
+
+  // Send the invitation email using Resend
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  await resend.emails.send({
+    from: 'OpenPreview <noreply@investa.so>',
+    to: email,
+    subject: `Join ${organization.name} on OpenPreview`,
+    react: OpenPreviewInviteUserEmail({
+      username: email.split('@')[0],
+      userImage: `${baseUrl}/images/avatar-placeholder.png`,
+      invitedByUsername: (await supabase.auth.getUser()).data.user?.user_metadata.full_name ?? email,
+      invitedByEmail: (await supabase.auth.getUser()).data.user?.email ?? email,
+      teamName: organization.name,
+      teamImage: organization.logo_url ?? `${baseUrl}/images/avatar-placeholder.png`,
+      inviteLink: inviteData.properties.action_link,
+      inviteFromIp: ip,
+      inviteFromLocation: location,
+    }),
+  });
+
+  revalidatePath(`/[organizationSlug]/[projectSlug]/settings/members`, 'page');
+  return { success: true, error: null };
 }
 
 export async function updateMemberRole(formData: FormData) {

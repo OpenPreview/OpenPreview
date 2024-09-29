@@ -12,7 +12,6 @@ export const metadata: Metadata = {
 async function getOrganizationMembers(organizationSlug: string) {
   const supabase = createClient();
 
-  // First, get the organization ID
   const { data: members, error: orgError } = await supabase
     .from('organizations')
     .select(
@@ -29,6 +28,38 @@ async function getOrganizationMembers(organizationSlug: string) {
   return members;
 }
 
+async function getPendingInvites(organizationSlug: string) {
+  const supabase = createClient();
+
+  // First, get the organization ID
+  const { data: organization, error: orgError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', organizationSlug)
+    .single();
+
+  if (orgError) {
+    console.error('Error fetching organization:', orgError);
+    throw new Error('Failed to fetch organization');
+  }
+
+  const organizationId = organization.id;
+
+  // Then, fetch pending invites using the organization ID
+  const { data: pendingInvites, error: inviteError } = await supabase
+    .from('organization_invitations')
+    .select('id, email, role')
+    .eq('organization_id', organizationId)
+    .is('accepted_at', null);
+
+  if (inviteError) {
+    console.error('Error fetching pending invites:', inviteError);
+    throw new Error('Failed to fetch pending invites');
+  }
+
+  return pendingInvites;
+}
+
 async function getCurrentUserId() {
   const supabase = createClient();
   const {
@@ -43,8 +74,9 @@ export default async function OrganizationMembersPage({
   params: { organizationSlug: string; projectSlug: string };
 }) {
   const members = await getOrganizationMembers(params.organizationSlug);
+  const pendingInvites = await getPendingInvites(params.organizationSlug);
   const currentUserId = await getCurrentUserId();
-  console.log(members);
+
   return (
     <div className="space-y-6 border-l p-4">
       <div>
@@ -54,7 +86,12 @@ export default async function OrganizationMembersPage({
         </p>
       </div>
       <Separator />
-      <MembersList members={members.organization_members} currentUserId={currentUserId} />
+      <MembersList
+        members={members.organization_members}
+        currentUserId={currentUserId}
+        pendingInvites={pendingInvites}
+        organizationSlug={params.organizationSlug}
+      />
       <Separator />
       <InviteMemberForm organizationSlug={params.organizationSlug} />
     </div>
