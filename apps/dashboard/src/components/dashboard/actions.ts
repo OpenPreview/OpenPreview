@@ -134,11 +134,11 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
     subject: `Join ${organization.name} on OpenPreview`,
     react: OpenPreviewInviteUserEmail({
       username: email.split('@')[0],
-      userImage: `${baseUrl}/images/avatar-placeholder.png`,
+      userImage: `${baseUrl}/static/avatar-placeholder.png`,
       invitedByUsername: (await supabase.auth.getUser()).data.user?.user_metadata.full_name ?? email,
       invitedByEmail: (await supabase.auth.getUser()).data.user?.email ?? email,
       teamName: organization.name,
-      teamImage: organization.logo_url ?? `${baseUrl}/images/avatar-placeholder.png`,
+      teamImage: organization.logo_url ?? `${baseUrl}/static/avatar-placeholder.png`,
       inviteLink: inviteData.properties.action_link,
       inviteFromIp: ip,
       inviteFromLocation: location,
