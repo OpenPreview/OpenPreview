@@ -33,7 +33,7 @@ export default async function AuthLayout({
       .single();
 
     if (data?.onboarding_completed) {
-      redirect('/dashboard');
+      redirect('/');
     } else {
       redirect('/onboarding');
     }

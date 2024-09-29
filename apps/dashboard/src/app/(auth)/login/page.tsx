@@ -174,12 +174,14 @@ export default function LoginPage() {
         title: 'Login successful',
         description: 'You have been successfully logged in.',
       });
-      router.push('/dashboard'); // Redirect to dashboard after successful login
+      router.push('/'); // Redirect to dashboard after successful login
     } catch (error) {
       if (error instanceof Error) {
         toast({
           title: 'Login failed',
-          description: error.message || 'An error occurred during login. Please try again.',
+          description:
+            error.message ||
+            'An error occurred during login. Please try again.',
           variant: 'destructive',
         });
       } else {
@@ -238,12 +240,13 @@ export default function LoginPage() {
         title: 'OTP Verified',
         description: 'Your one-time password has been verified successfully.',
       });
-      router.push('/dashboard'); // Redirect to dashboard after successful verification
+      router.push('/'); // Redirect to dashboard after successful verification
     } catch (error) {
       if (error instanceof Error) {
         toast({
           title: 'OTP Verification Failed',
-          description: error.message || 'Failed to verify OTP. Please try again.',
+          description:
+            error.message || 'Failed to verify OTP. Please try again.',
           variant: 'destructive',
         });
       } else {

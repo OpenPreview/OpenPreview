@@ -30,7 +30,7 @@ export default async function OnboardingLayout({
     .single();
 
   if (userData?.onboarding_completed) {
-    redirect('/dashboard');
+    redirect('/');
   }
 
   return (
