@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@openpreview/ui/components/select';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { inviteMember } from './actions';
@@ -35,7 +36,7 @@ interface InviteMemberFormProps {
 
 export function InviteMemberForm({ organizationSlug }: InviteMemberFormProps) {
   const { toast } = useToast();
-
+  const router = useRouter();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -60,6 +61,7 @@ export function InviteMemberForm({ organizationSlug }: InviteMemberFormProps) {
       } else {
         throw new Error(result.error || 'Failed to send invitation');
       }
+      router.refresh();
     } catch (error) {
       console.error('Error inviting member:', error);
       toast({
