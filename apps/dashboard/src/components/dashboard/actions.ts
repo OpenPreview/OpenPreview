@@ -48,10 +48,6 @@ export async function inviteMember(organizationSlug: string, email: string, role
       .is('accepted_at', null)
       .single();
 
-    if (inviteError && inviteError.code !== 'PGRST116') {
-      return { success: false, error: inviteError.message };
-    }
-
     if (existingInvite) {
       // Reinvite the user
       const { error: updateError } = await supabase

@@ -70,7 +70,7 @@ export default async function AuthLayout({
         </div>
 
         {/* Left side - Navy background (hidden on mobile) */}
-        <div className="relative hidden w-full bg-[#062056] lg:block lg:w-1/2">
+        <div className="rounded-r-7xl relative hidden w-full bg-[#062056] lg:block lg:w-1/2">
           <DotPattern
             className={cn(
               'absolute inset-0 h-full w-full opacity-50',
@@ -91,7 +91,10 @@ export default async function AuthLayout({
         <div className="bg-background flex w-full flex-col lg:w-1/2">
           <div className="flex items-center justify-between p-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/" className="flex items-center">
+              <Link
+                href={`${process.env.NEXT_PUBLIC_SITE_URL}`}
+                className="flex items-center"
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Home
               </Link>
