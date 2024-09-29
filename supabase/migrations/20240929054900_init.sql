@@ -51,6 +51,23 @@ create table "public"."organization_members" (
 
 alter table "public"."organization_members" enable row level security;
 
+CREATE OR REPLACE FUNCTION public.generate_random_slug()
+ RETURNS text
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  chars TEXT := 'abcdefghijklmnopqrstuvwxyz0123456789';
+  result TEXT := '';
+  i INT;
+BEGIN
+  FOR i IN 1..10 LOOP
+    result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
+  END LOOP;
+  RETURN result;
+END;
+$function$
+;
+
 create table "public"."organizations" (
     "id" uuid not null default gen_random_uuid(),
     "name" text not null,
@@ -195,22 +212,7 @@ alter table "public"."users" validate constraint "users_id_fkey";
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.generate_random_slug()
- RETURNS text
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  chars TEXT := 'abcdefghijklmnopqrstuvwxyz0123456789';
-  result TEXT := '';
-  i INT;
-BEGIN
-  FOR i IN 1..10 LOOP
-    result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
-  END LOOP;
-  RETURN result;
-END;
-$function$
-;
+
 
 CREATE OR REPLACE FUNCTION public.get_comments_with_replies(project_id uuid)
  RETURNS jsonb
