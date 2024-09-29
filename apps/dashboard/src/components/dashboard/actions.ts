@@ -86,6 +86,12 @@ export async function inviteMember(organizationSlug: string, email: string, role
   }
 }
 
+const getLocationFromIp = async (ip: string) => {
+  const response = await fetch(`https://ipapi.co/${ip}/json/`);
+  const data = await response.json();
+  return `${data.city}, ${data.country_name}`;
+}
+
 async function sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug) {
   // Generate the invite link using Supabase
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
@@ -104,15 +110,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
   const headersList = headers();
   const ip = headersList.get('x-forwarded-for') || 'Unknown';
 
-  // Get approximate location from IP using a geolocation service
-  let location = 'Unknown';
-  try {
-    const response = await fetch(`https://ipapi.co/${ip}/json/`);
-    const data = await response.json();
-    location = `${data.city}, ${data.country_name}`;
-  } catch (error) {
-    console.error('Error fetching location:', error);
-  }
+  const location = await getLocationFromIp(ip);
 
   // Fetch user data from the users table
   const { data: userData, error: userError } = await supabase
