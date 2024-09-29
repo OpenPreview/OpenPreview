@@ -54,7 +54,7 @@ export const OpenPreviewInviteUserEmail = ({
           <Container className="mx-auto my-[40px] w-[465px] rounded border border-solid border-[#eaeaea] p-[20px]">
             <Section className="mt-[32px]">
               <Img
-                src={`${baseUrl}/static/OpenPreview-logo.png`}
+                src={`${baseUrl}/static/openpreview-logo.png`}
                 width="40"
                 height="37"
                 alt="OpenPreview"
@@ -90,7 +90,7 @@ export const OpenPreviewInviteUserEmail = ({
                 </Column>
                 <Column align="center">
                   <Img
-                    src={`${baseUrl}/static/OpenPreview-arrow.png`}
+                    src={`${baseUrl}/static/openpreview-arrow.png`}
                     width="12"
                     height="9"
                     alt="invited you to"
