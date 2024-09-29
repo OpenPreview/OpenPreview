@@ -12,6 +12,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
 -- ORGANIZATIONS
 CREATE TABLE organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,6 +88,29 @@ CREATE TABLE comments (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+-- ORGANIZATION_INVITATIONS
+CREATE TABLE organization_invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL,
+  invited_by UUID REFERENCES users(id) ON DELETE CASCADE,
+  accepted_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Function to check if a user is a member of an organization
+CREATE OR REPLACE FUNCTION is_member_of(_user_id uuid, _organization_id uuid) RETURNS bool AS $$
+SELECT EXISTS (
+  SELECT 1
+  FROM organization_members om
+  WHERE om.organization_id = _organization_id
+  AND om.user_id = _user_id
+);
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
 -- Enable RLS for all tables
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -95,17 +119,14 @@ ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE allowed_domains ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organization_invitations ENABLE ROW LEVEL SECURITY;
 
 -- Define RLS policies
 -- Organizations: Allow insert for authenticated users, view for members
 CREATE POLICY org_insert_policy ON organizations FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY org_select_policy ON organizations FOR SELECT TO authenticated USING (true);
 CREATE POLICY org_member_policy ON organizations FOR ALL
-    USING (EXISTS (
-        SELECT 1 FROM organization_members
-        WHERE organization_members.organization_id = organizations.id
-        AND organization_members.user_id = auth.uid()
-    ));
+    USING (is_member_of(auth.uid(), id));
 
 -- Users: Only the user themselves can view
 CREATE POLICY user_self_policy ON users
@@ -118,33 +139,23 @@ CREATE POLICY org_member_view_policy ON organization_members FOR SELECT
 
 -- Projects: Only members can view and insert
 CREATE POLICY project_member_policy ON projects FOR SELECT
-    USING (EXISTS (
-        SELECT 1 FROM organization_members
-        WHERE organization_members.organization_id = projects.organization_id
-        AND organization_members.user_id = auth.uid()
-    ));
+    USING (is_member_of(auth.uid(), organization_id));
 CREATE POLICY project_insert_policy ON projects FOR INSERT TO authenticated
-    WITH CHECK (EXISTS (
-        SELECT 1 FROM organization_members
-        WHERE organization_members.organization_id = projects.organization_id
-        AND organization_members.user_id = auth.uid()
-    ));
+    WITH CHECK (is_member_of(auth.uid(), organization_id));
 
 -- Project Members: Only organization members can view and insert
 CREATE POLICY project_member_view_policy ON project_members FOR SELECT
     USING (EXISTS (
-        SELECT 1 FROM organization_members AS om
-        JOIN projects p ON p.organization_id = om.organization_id
+        SELECT 1 FROM projects p
         WHERE p.id = project_members.project_id
-        AND om.user_id = auth.uid()
+        AND is_member_of(auth.uid(), p.organization_id)
     ));
     
 CREATE POLICY project_member_insert_policy ON project_members FOR INSERT TO authenticated
     WITH CHECK (EXISTS (
-        SELECT 1 FROM organization_members AS om
-        JOIN projects p ON p.organization_id = om.organization_id
+        SELECT 1 FROM projects p
         WHERE p.id = project_members.project_id
-        AND om.user_id = auth.uid()
+        AND is_member_of(auth.uid(), p.organization_id)
     ));
 
 -- Allowed Domains: Only project members can view and insert
@@ -174,6 +185,12 @@ CREATE POLICY comment_insert_policy ON comments FOR INSERT TO authenticated
         WHERE project_members.project_id = comments.project_id
         AND project_members.user_id = auth.uid()
     ));
+
+-- Organization Invitations: Only organization members can view and insert
+CREATE POLICY org_invitation_view_policy ON organization_invitations FOR SELECT
+    USING (is_member_of(auth.uid(), organization_id));
+CREATE POLICY org_invitation_insert_policy ON organization_invitations FOR INSERT TO authenticated
+    WITH CHECK (is_member_of(auth.uid(), organization_id));
 
 -- Create a function to handle new user creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()

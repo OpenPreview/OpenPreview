@@ -48,7 +48,7 @@ enabled = true
 # Port to use for Supabase Studio.
 port = 54323
 # External URL of the API server that frontend connects to.
-api_url = "http://127.0.0.1"
+api_url = "http://localhost"
 # OpenAI API Key to use for Supabase AI in the Supabase Studio.
 openai_api_key = "env(OPENAI_API_KEY)"
 
@@ -74,9 +74,9 @@ enabled = true
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3002"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["http://localhost:3002"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # If disabled, the refresh token will never expire.
@@ -102,14 +102,36 @@ enable_confirmations = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Uncomment to customize email template
+[auth.email.template.invite]
+subject = "You have been invited"
+content_path = "./supabase/auth/email/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm Your Email for Auth Flows"
+content_path = "./supabase/auth/email/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset Your Password for Auth Flows"
+content_path = "./supabase/auth/email/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Your Magic Link for Auth Flows"
+content_path = "./supabase/auth/email/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm Email Change for Auth Flows"
+content_path = "./supabase/auth/email/email-change.html"
+
+
+# Use Resend for email delivery
+[auth.email.smtp]
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "team@investa.so"
+sender_name = "Investa"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -174,7 +196,7 @@ policy = "oneshot"
 inspector_port = 8083
 
 [analytics]
-enabled = false
+enabled = true
 port = 54327
 vector_port = 54328
 # Configure one of the supported backends: `postgres`, `bigquery`.

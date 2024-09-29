@@ -6,15 +6,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from '@openpreview/ui/components/sheet';
-import {
-  Code,
-  FileText,
-  Home,
-  Menu,
-  MessageSquare,
-  Plus,
-  Settings,
-} from 'lucide-react';
+import { Code, Home, Menu, MessageSquare, Plus, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -37,7 +29,6 @@ const sidebarItems = [
   { href: '', icon: Home, label: 'Dashboard' },
   { href: 'development', icon: Code, label: 'Development' },
   { href: 'comments', icon: MessageSquare, label: 'Comments' },
-  { href: 'documents', icon: FileText, label: 'Documents' },
 ];
 
 const sidebarFooter = [{ href: 'settings', icon: Settings, label: 'Settings' }];
