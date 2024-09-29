@@ -71,6 +71,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          parent_id: string | null
           project_id: string | null
           updated_at: string | null
           url: string
@@ -82,6 +83,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           project_id?: string | null
           updated_at?: string | null
           url: string
@@ -93,6 +95,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           project_id?: string | null
           updated_at?: string | null
           url?: string
@@ -101,6 +104,13 @@ export type Database = {
           y_position?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "comments_project_id_fkey"
             columns: ["project_id"]
@@ -113,6 +123,54 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string | null
+          email: string
+          expires_at: string | null
+          id: string
+          invited_by: string
+          organization_id: string
+          role: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email: string
+          expires_at?: string | null
+          id?: string
+          invited_by: string
+          organization_id: string
+          role: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string | null
+          id?: string
+          invited_by?: string
+          organization_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -304,6 +362,12 @@ export type Database = {
       generate_random_slug: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_comments_with_replies: {
+        Args: {
+          project_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

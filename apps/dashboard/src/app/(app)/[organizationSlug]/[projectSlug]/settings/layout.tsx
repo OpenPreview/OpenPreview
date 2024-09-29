@@ -29,6 +29,10 @@ export default function SettingsLayout({
       href: `/${params.organizationSlug}/${params.projectSlug}/settings/organization`,
     },
     {
+      title: 'Members',
+      href: `/${params.organizationSlug}/${params.projectSlug}/settings/members`,
+    },
+    {
       title: 'User',
       href: `/${params.organizationSlug}/${params.projectSlug}/settings/user`,
     },

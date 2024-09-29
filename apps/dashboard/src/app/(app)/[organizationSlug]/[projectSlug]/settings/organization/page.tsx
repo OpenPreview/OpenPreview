@@ -45,7 +45,6 @@ export default async function OrganizationSettingsPage({
       <Separator />
       <OrganizationLogoUpload
         organizationSlug={organizationSettings.slug}
-        projectSlug={params.projectSlug}
         currentLogoUrl={organizationSettings.logo_url}
         organizationName={organizationSettings.name}
       />

@@ -1,4 +1,5 @@
 import { createClient } from '@lib/server';
+import { Toaster } from '@openpreview/ui/components/toaster';
 import { cn } from '@openpreview/ui/lib/utils';
 import { Inter } from 'next/font/google';
 import { redirect } from 'next/navigation';
@@ -27,6 +28,16 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  const { data: onboarding } = await supabase
+    .from('users')
+    .select('onboarding_completed')
+    .eq('id', user.id)
+    .single();
+
+  if (!onboarding?.onboarding_completed) {
+    redirect('/onboarding');
+  }
+
   const { data: organizations } = await supabase
     .from('organizations')
     .select('id, name, slug, logo_url')
@@ -48,6 +59,7 @@ export default async function DashboardLayout({
           </main>
         </div>
       </div>
+      <Toaster />
     </body>
   );
 }

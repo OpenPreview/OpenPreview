@@ -52,8 +52,6 @@ export default async function UserSettingsPage({
       </div>
       <Separator />
       <UserAvatarUpload
-        organizationSlug={params.organizationSlug}
-        projectSlug={params.projectSlug}
         userId={userSettings.id}
         currentAvatarUrl={userSettings.avatar_url}
         userName={userSettings.name}

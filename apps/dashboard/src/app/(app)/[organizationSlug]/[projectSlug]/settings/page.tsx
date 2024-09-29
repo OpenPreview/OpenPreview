@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 border-l p-4">
       <h3 className="text-lg font-medium">Settings Overview</h3>
       <p className="text-muted-foreground text-sm">
         Select a category from the sidebar to manage specific settings.
