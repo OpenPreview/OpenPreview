@@ -63,13 +63,13 @@ export const OpenPreviewInviteUserEmail = ({
                 className="mx-auto my-0"
               />
             </Section>
-            <Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
+            <Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-[#222f5a]">
               Join <strong>{teamName}</strong> on <strong>OpenPreview</strong>
             </Heading>
-            <Text className="text-[14px] leading-[24px] text-black">
+            <Text className="text-[14px] leading-[24px] text-[#222f5a]">
               Hello {username},
             </Text>
-            <Text className="text-[14px] leading-[24px] text-black">
+            <Text className="text-[14px] leading-[24px] text-[#222f5a]">
               <strong>{invitedByUsername}</strong> (
               <Link
                 href={`mailto:${invitedByEmail}`}
@@ -110,13 +110,13 @@ export const OpenPreviewInviteUserEmail = ({
             </Section>
             <Section className="mb-[32px] mt-[32px] text-center">
               <Button
-                className="rounded bg-[#000000] px-4 py-3 text-center text-[12px] font-semibold text-white no-underline"
+                className="rounded bg-[#222f5a] px-4 py-3 text-center text-[12px] font-semibold text-white no-underline"
                 href={inviteLink}
               >
                 Join the team
               </Button>
             </Section>
-            <Text className="text-[14px] leading-[24px] text-black">
+            <Text className="text-[14px] leading-[24px] text-[#222f5a]">
               or copy and paste this URL into your browser:{' '}
               <Link href={inviteLink} className="text-blue-600 no-underline">
                 {inviteLink}
@@ -125,12 +125,12 @@ export const OpenPreviewInviteUserEmail = ({
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-[12px] leading-[24px] text-[#666666]">
               This invitation was intended for{' '}
-              <span className="text-black">{username} </span>.This invite was
-              sent from <span className="text-black">{inviteFromIp}</span>{' '}
-              located in{' '}
-              <span className="text-black">{inviteFromLocation}</span>. If you
-              were not expecting this invitation, you can ignore this email. If
-              you are concerned about your account's safety, please reply to
+              <span className="text-[#222f5a]">{username} </span>.This invite
+              was sent from{' '}
+              <span className="text-[#222f5a]">{inviteFromIp}</span> located in{' '}
+              <span className="text-[#222f5a]">{inviteFromLocation}</span>. If
+              you were not expecting this invitation, you can ignore this email.
+              If you are concerned about your account's safety, please reply to
               this email to get in touch with us.
             </Text>
           </Container>
