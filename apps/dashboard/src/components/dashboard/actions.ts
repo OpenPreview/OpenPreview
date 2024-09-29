@@ -142,6 +142,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
       inviteLink: inviteData.properties.action_link,
       inviteFromIp: ip,
       inviteFromLocation: location,
+      role: role,
     }),
   });
 
