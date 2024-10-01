@@ -1,3 +1,4 @@
+import { createClient } from '@openpreview/db/server';
 import { Inter } from 'next/font/google';
 import Link from 'next/link';
 import Footer from '../components/footer';
@@ -14,13 +15,17 @@ export const metadata = {
   description: 'The page you are looking for could not be found.',
 };
 
-export default function NotFound() {
+export default async function NotFound() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   return (
     <body
       className={`${inter.variable} font-inter bg-gray-50 tracking-tight text-gray-900 antialiased`}
     >
       <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
-        <Header />
+        <Header user={user} />
         <div className="flex flex-grow items-center justify-center">
           <main className="mx-auto w-full max-w-md px-4">
             <div className="text-center">

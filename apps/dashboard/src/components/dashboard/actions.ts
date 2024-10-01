@@ -1,8 +1,8 @@
 'use server';
 import 'server-only';
 
-import { createAdminClient } from '@lib/admin';
-import { createClient } from '@lib/server';
+import { createAdminClient } from '@openpreview/db/admin';
+import { createClient } from '@openpreview/db/server';
 import { OpenPreviewInviteUserEmail } from '@openpreview/transactional/emails/opv-invite-user';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';

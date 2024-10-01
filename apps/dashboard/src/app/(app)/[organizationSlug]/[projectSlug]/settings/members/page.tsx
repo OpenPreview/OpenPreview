@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
 import { InviteMemberForm } from 'src/components/dashboard/InviteMemberForm';

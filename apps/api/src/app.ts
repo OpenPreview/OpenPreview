@@ -18,13 +18,35 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Configure CORS
+const corsOptions: cors.CorsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Add your allowed origins here
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'https://yourdomain.com'
+    ];
+    
+    if (allowedOrigins.includes(origin) || origin.endsWith('.yourdomain.com')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+
 // using morgan for logs
 app.use(morgan('combined'));
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
-}));
 app.use(express.json());
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
@@ -33,13 +55,12 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment');
-    console.log('Current environment variables:', process.env);
+    console.error('NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment');
     process.exit(1);
 }
 
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
-const dashboardUrl = process.env.DASHBOARD_URL || 'https://app.example.com';
+const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002';
 
 // Extend the Request type to include the user and project properties
 interface AuthenticatedRequest extends Request {
@@ -361,7 +382,7 @@ wss.on('connection', (ws: WebSocket) => {
     });
 });
 
-const port = process.env.PORT || 3003;
+const port = process.env.API_PORT || 3003;
 server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
 });

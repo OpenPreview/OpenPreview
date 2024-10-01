@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import { DotPattern } from '@openpreview/ui/components/dot-pattern';
 import { Toaster } from '@openpreview/ui/components/toaster';

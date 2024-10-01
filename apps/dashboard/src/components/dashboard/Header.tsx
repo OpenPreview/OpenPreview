@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import {
   Avatar,
   AvatarFallback,

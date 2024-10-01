@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { redirect } from 'next/navigation';
 import { ReactNode } from 'react';
 

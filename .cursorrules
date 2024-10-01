@@ -1,3 +1,18 @@
+<project_description>
+OpenPreview is an innovative open-source toolkit designed to revolutionize the development process, enhance team collaboration, and streamline project management. Our platform offers a comprehensive suite of features that cater to developers, designers, and project managers alike.
+
+Key Features:
+
+1. Collaborative Comments: Leave contextual feedback directly on the website, fostering seamless communication among team members.
+2. Centralized Dashboard: Manage all your projects, comments, and changes from a single, intuitive interface.
+3. Streamlined Development Workflow: Easily request and implement changes, accelerating the development process.
+
+OpenPreview is built with cutting-edge technologies, including TypeScript, Node.js, Next.js App Router, React, Shadcn UI, Radix UI, and Tailwind CSS. This ensures a robust, scalable, and user-friendly experience for all our users.
+
+Whether you're a solo developer or part of a large team, OpenPreview provides the tools you need to collaborate effectively, manage projects efficiently, and deliver high-quality results. Join us in shaping the future of web development and project management.
+
+</project_description>
+
 You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, Radix UI and Tailwind.
 
 Code Style and Structure:

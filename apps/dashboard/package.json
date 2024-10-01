@@ -21,6 +21,7 @@
     "@openpreview/tsconfig": "*",
     "@openpreview/eslint-config-custom": "*",
     "@openpreview/ui": "*",
-    "@openpreview/transactional": "*"
+    "@openpreview/transactional": "*",
+    "@openpreview/db": "*"
   }
 }

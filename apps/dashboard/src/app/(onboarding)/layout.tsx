@@ -1,7 +1,7 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
+import { Toaster } from '@openpreview/ui/components/toaster';
 import { Inter } from 'next/font/google';
 import { redirect } from 'next/navigation';
-import { Toaster } from '@openpreview/ui/components/toaster';
 
 const inter = Inter({
   subsets: ['latin'],

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -25,6 +25,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from '@openpreview/ui/components/input-otp';
+import { PasswordInput } from '@openpreview/ui/components/password-input';
 import {
   Tabs,
   TabsContent,
@@ -303,7 +304,7 @@ export default function LoginPage() {
                         <FormLabel className="w-full">Password</FormLabel>
                       </div>
                       <FormControl>
-                        <Input
+                        <PasswordInput
                           type="password"
                           placeholder="Enter password"
                           {...field}

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -19,8 +19,8 @@ import {
   FormMessage,
 } from '@openpreview/ui/components/form';
 import { Input } from '@openpreview/ui/components/input';
+import { PasswordInput } from '@openpreview/ui/components/password-input';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
-import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -147,25 +147,11 @@ export default function SignUpPage() {
                 <FormItem>
                   <FormLabel className="block">Password</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter password"
-                        {...field}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center pr-3"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
+                    <PasswordInput
+                      placeholder="Enter password"
+                      {...field}
+                      className="pr-10"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -178,27 +164,11 @@ export default function SignUpPage() {
                 <FormItem>
                   <FormLabel className="block">Confirm Password</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        placeholder="Confirm password"
-                        {...field}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center pr-3"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
+                    <PasswordInput
+                      placeholder="Confirm password"
+                      {...field}
+                      className="pr-10"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

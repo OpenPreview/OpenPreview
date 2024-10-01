@@ -1,6 +1,6 @@
 'use client';
 
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import {
   Avatar,
   AvatarFallback,

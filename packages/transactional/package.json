@@ -2,7 +2,7 @@
     "name": "@openpreview/transactional",
     "version": "1.0.0",
     "scripts": {
-        "dev": "email dev -p 3004",
+        "dev": "email dev -p 3005",
         "export": "email export"
     },
     "dependencies": {

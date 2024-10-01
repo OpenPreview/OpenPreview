@@ -1,8 +1,13 @@
-import { createClient } from '@lib/server';
-import { Card, CardContent, CardHeader, CardTitle } from "@openpreview/ui/components/card";
-import Link from 'next/link';
-import { Button } from "@openpreview/ui/components/button";
+import { createClient } from '@openpreview/db/server';
+import { Button } from '@openpreview/ui/components/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@openpreview/ui/components/card';
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 
 interface Organization {
   id: string;
@@ -25,7 +30,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Your Organizations</h1>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> Add Organization
@@ -34,7 +39,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {organizations.map((org: Organization) => (
           <Link href={`/${org.slug}`} key={org.id}>
-            <Card className="hover:shadow-lg transition-shadow duration-200">
+            <Card className="transition-shadow duration-200 hover:shadow-lg">
               <CardHeader>
                 <CardTitle>{org.name}</CardTitle>
               </CardHeader>

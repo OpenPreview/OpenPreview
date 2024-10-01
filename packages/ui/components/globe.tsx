@@ -1,8 +1,8 @@
 'use client';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { Canvas, extend, Object3DNode, useThree } from '@react-three/fiber';
 import { useEffect, useRef, useState } from 'react';
-import { Color, Fog, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { Color, Fog, Scene, Vector3 } from 'three';
 import ThreeGlobe from 'three-globe';
 import countries from '../data/globe.json';
 declare module '@react-three/fiber' {
@@ -60,7 +60,7 @@ interface WorldProps {
 
 let numbersOfRings = [0];
 
-export function Globe({ globeConfig, data }: WorldProps) {
+function Globe({ globeConfig, data }: WorldProps) {
   const [globeData, setGlobeData] = useState<
     | {
         size: number;
@@ -91,7 +91,9 @@ export function Globe({ globeConfig, data }: WorldProps) {
     ...globeConfig,
   };
 
-  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+  const isMobile =
+    typeof window !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
 
   useEffect(() => {
     if (globeRef.current) {
@@ -250,7 +252,7 @@ export function Globe({ globeConfig, data }: WorldProps) {
   );
 }
 
-export function WebGLRendererConfig() {
+function WebGLRendererConfig() {
   const { gl, size } = useThree();
 
   useEffect(() => {
@@ -266,30 +268,36 @@ export function World(props: WorldProps) {
   const { globeConfig } = props;
   const scene = new Scene();
   scene.fog = new Fog(0xffffff, 400, 2000);
-  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
-  
+  const isMobile =
+    typeof window !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent);
+
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const updateSize = () => {
       setSize({ width: window.innerWidth, height: window.innerHeight });
     };
-    
+
     window.addEventListener('resize', updateSize);
     updateSize();
-    
+
     return () => {
       window.removeEventListener('resize', updateSize);
     };
   }, []);
 
   return (
-    <Canvas
-      className={isMobile ? 'canvas' : ''}
-      scene={scene}
-      camera={new PerspectiveCamera(50, size.width / size.height, 180, 1800)}
-    >
+    <Canvas className={isMobile ? 'canvas' : ''} scene={scene}>
       <WebGLRendererConfig />
+      <PerspectiveCamera
+        makeDefault
+        fov={50}
+        aspect={size.width / size.height}
+        near={180}
+        far={1800}
+        position={[0, 0, cameraZ]}
+      />
       <ambientLight color={globeConfig.ambientLight} intensity={0.6} />
       <directionalLight
         color={globeConfig.directionalLeftLight}

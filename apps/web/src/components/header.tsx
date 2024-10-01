@@ -7,14 +7,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@openpreview/ui/components/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from '@openpreview/ui/components/sheet';
-import { ArrowUpRight } from 'lucide-react';
-
-import { ChevronDown, Menu } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowUpRight, ChevronDown, Github, Menu } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -64,19 +59,21 @@ const headerData: headerType = {
     {
       label: 'Login',
       variant: 'ghost',
-      href: `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login`,
+      href: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
     },
     {
       label: 'Register',
       variant: 'default',
-      href: `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/register`,
+      href: `${process.env.NEXT_PUBLIC_APP_URL}/register`,
     },
   ],
 };
 
-export default function Header() {
+export default function Header({ user }: { user: User | null }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileExtraOpen, setIsMobileExtraOpen] = useState(false);
 
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const toggleMobileExtra = () => setIsMobileExtraOpen(!isMobileExtraOpen);
 
   return (
@@ -130,81 +127,174 @@ export default function Header() {
 
           {/* Desktop Buttons */}
           <div className="hidden items-center space-x-2 md:flex">
-            {headerData.buttons.map((button, index) => (
-              <Button
-                key={index}
-                variant={button.variant as any}
-                className="text-base font-medium"
-                asChild
-              >
-                <Link href={button.href}>{button.label}</Link>
+            {user ? (
+              <Button className="text-base font-medium" asChild>
+                <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard`}>
+                  Enter Dashboard
+                </Link>
               </Button>
-            ))}
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  className="text-base font-medium"
+                  asChild
+                >
+                  <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/login`}>
+                    Login
+                  </Link>
+                </Button>
+                <Button
+                  variant="default"
+                  className="text-base font-medium"
+                  asChild
+                >
+                  <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/register`}>
+                    Register
+                  </Link>
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-base font-medium"
+              asChild
+            >
+              <Link
+                href="https://github.com/openpreview/openpreview"
+                target="_blank"
+              >
+                <Github className="h-5 w-5" />
+                <span className="sr-only">GitHub</span>
+              </Link>
+            </Button>
           </div>
 
           {/* Mobile Menu Button */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-6 w-6" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-              <nav className="flex flex-col space-y-4">
-                {headerData.navItems.map((item, index) => (
-                  <div key={index}>
-                    {item.hasDropdown ? (
-                      <>
-                        <button
-                          onClick={toggleMobileExtra}
-                          className="text-foreground hover:text-foreground/80 flex w-full items-center justify-between text-base font-medium"
-                        >
-                          <span>{item.label}</span>
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
-                        {isMobileExtraOpen && (
-                          <div className="mt-2 space-y-2 pl-4">
-                            {item.dropdownItems.map(
-                              (dropdownItem, dropdownIndex) => (
-                                <Link
-                                  key={dropdownIndex}
-                                  href={dropdownItem.href}
-                                  target={
-                                    dropdownItem.external ? '_blank' : undefined
-                                  }
-                                  className="text-foreground hover:text-foreground/80 block text-base"
-                                >
-                                  {dropdownItem.label}
-                                </Link>
-                              ),
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={toggleMobileMenu}
+          >
+            <Menu className="h-6 w-6" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+
+          {/* Mobile Menu */}
+          <AnimatePresence>
+            {isMobileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="bg-background absolute right-0 top-full z-50 mt-2 w-full rounded-md border p-4 shadow-lg md:hidden"
+              >
+                <nav className="flex flex-col space-y-4">
+                  {headerData.navItems.map((item, index) => (
+                    <div key={index}>
+                      {item.hasDropdown ? (
+                        <>
+                          <button
+                            onClick={toggleMobileExtra}
+                            className="text-foreground hover:text-foreground/80 flex w-full items-center justify-between text-base font-medium"
+                          >
+                            <span>{item.label}</span>
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <AnimatePresence>
+                            {isMobileExtraOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="mt-2 space-y-2 pl-4"
+                              >
+                                {item.dropdownItems.map(
+                                  (dropdownItem, dropdownIndex) => (
+                                    <Link
+                                      key={dropdownIndex}
+                                      href={dropdownItem.href}
+                                      target={
+                                        dropdownItem.external
+                                          ? '_blank'
+                                          : undefined
+                                      }
+                                      className="text-foreground hover:text-foreground/80 block text-base"
+                                    >
+                                      {dropdownItem.label}
+                                    </Link>
+                                  ),
+                                )}
+                              </motion.div>
                             )}
-                          </div>
-                        )}
-                      </>
-                    ) : (
+                          </AnimatePresence>
+                        </>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          className="text-foreground hover:text-foreground/80 block text-base font-medium"
+                        >
+                          {item.label}
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                  {user ? (
+                    <Button
+                      className="justify-start text-base font-medium"
+                      asChild
+                    >
                       <Link
-                        href={item.href}
-                        className="text-foreground hover:text-foreground/80 block text-base font-medium"
+                        href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard`}
                       >
-                        {item.label}
+                        Enter Dashboard
                       </Link>
-                    )}
-                  </div>
-                ))}
-                {headerData.buttons.map((button, index) => (
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        className="justify-start text-base font-medium"
+                        asChild
+                      >
+                        <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/login`}>
+                          Login
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="default"
+                        className="justify-start text-base font-medium"
+                        asChild
+                      >
+                        <Link
+                          href={`${process.env.NEXT_PUBLIC_APP_URL}/register`}
+                        >
+                          Register
+                        </Link>
+                      </Button>
+                    </>
+                  )}
                   <Button
-                    key={index}
-                    variant={button.variant as any}
+                    variant="ghost"
                     className="justify-start text-base font-medium"
                     asChild
                   >
-                    <Link href={button.href}>{button.label}</Link>
+                    <Link
+                      href="https://github.com/openpreview/openpreview"
+                      target="_blank"
+                    >
+                      <Github className="mr-2 h-5 w-5" />
+                      GitHub
+                    </Link>
                   </Button>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
+                </nav>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </nav>
       </div>
     </header>

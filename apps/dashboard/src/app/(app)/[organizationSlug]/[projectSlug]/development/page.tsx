@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { CodeBlock } from '@openpreview/ui/components/code-block';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
@@ -44,7 +44,7 @@ export default async function DevelopmentPage({
     clientId: '${project.id}'
   });
 </script>
-<script src="https://openpanel.dev/op1.js" defer async></script>`;
+<script src="https://cdn.openpreview.dev/opv.js" defer async></script>`;
 
   return (
     <div className="space-y-6 p-4">

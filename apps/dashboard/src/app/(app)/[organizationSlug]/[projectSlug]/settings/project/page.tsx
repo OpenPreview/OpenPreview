@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
 import { ProjectForm } from 'src/components/dashboard/ProjectForm';
@@ -18,7 +18,7 @@ async function getProjectSettings(projectSlug: string) {
 
   if (error) {
     console.error('Error fetching project settings:', error);
-    throw new Error('Failed to fetch project settings');
+    throw new Error(error.message || 'Failed to fetch project settings');
   }
 
   return data;

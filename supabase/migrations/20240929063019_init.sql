@@ -8,6 +8,12 @@ CREATE TRIGGER on_auth_user_created
 INSERT INTO storage.buckets (id, name, public) VALUES ('organization_logos', 'organization_logos', true);
 INSERT INTO storage.buckets (id, name, public) VALUES ('user_avatars', 'user_avatars', true);
 
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'user_avatars', 'user_avatars', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'user_avatars'
+);
+
 create policy "Anyone can update organization logos."
 on "storage"."objects"
 as permissive

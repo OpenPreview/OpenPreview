@@ -27,25 +27,44 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
 const wss = new ws_1.default.Server({ server });
+// Configure CORS
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin)
+            return callback(null, true);
+        // Add your allowed origins here
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:3002',
+            'https://yourdomain.com'
+        ];
+        if (allowedOrigins.includes(origin) || origin.endsWith('.yourdomain.com')) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
+    credentials: true
+};
+app.use((0, cors_1.default)(corsOptions));
 // using morgan for logs
 app.use((0, morgan_1.default)('combined'));
-app.use((0, cors_1.default)({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
-}));
 app.use(express_1.default.json());
 app.use(body_parser_1.default.urlencoded({ extended: true }));
 app.use(body_parser_1.default.json());
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment');
-    console.log('Current environment variables:', process.env);
+    console.error('NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment');
     process.exit(1);
 }
 const supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseServiceRoleKey);
-const dashboardUrl = process.env.DASHBOARD_URL || 'https://app.example.com';
+const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002';
 // Store for temporary authentication codes
 const authCodes = new Map();
 // Authentication middleware
@@ -325,7 +344,7 @@ wss.on('connection', (ws) => {
         console.log('Client disconnected');
     });
 });
-const port = process.env.PORT || 3003;
+const port = process.env.API_PORT || 3003;
 server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
 });

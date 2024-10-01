@@ -3,7 +3,6 @@
 import DotPattern from '@openpreview/ui/components/dot-pattern';
 import { cn } from '@openpreview/ui/lib/utils';
 import createGlobe from 'cobe';
-import { motion } from 'framer-motion';
 import Image from 'next/image';
 import React, { useEffect, useRef } from 'react';
 
@@ -104,7 +103,7 @@ const FeatureDescription = ({ children }: { children?: React.ReactNode }) => {
 const SkeletonOne = () => {
   return (
     <div className="relative flex h-full gap-10 px-2 py-8">
-      <div className="bg-card group mx-auto h-full w-full p-5 shadow-2xl">
+      <div className="shadow-left group mx-auto h-full w-full shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)]">
         <div className="flex h-full w-full flex-1 flex-col space-y-2">
           <Image
             src="https://investa.so/_next/image?url=%2F_next%2Fstatic%2Fmedia%2FJournalDash.9a943d64.png&w=3840&q=75"
@@ -120,76 +119,30 @@ const SkeletonOne = () => {
 };
 
 const SkeletonTwo = () => {
-  const images = [
-    'https://images.unsplash.com/photo-1517322048670-4fba75cbbb62?q=80&w=3000&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1573790387438-4da905039392?q=80&w=3425&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1555400038-63f5ba517a47?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1554931670-4ebfabf6e7a9?q=80&w=3387&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1546484475-7f7bd55792da?q=80&w=2581&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-  ];
-
-  const imageVariants = {
-    whileHover: {
-      scale: 1.1,
-      rotate: 0,
-      zIndex: 100,
-    },
-    whileTap: {
-      scale: 1.1,
-      rotate: 0,
-      zIndex: 100,
-    },
-  };
   return (
-    <div className="relative flex h-full flex-col items-start gap-10 overflow-hidden p-8">
-      {/* TODO */}
-      <div className="-ml-20 flex flex-row">
-        {images.map((image, idx) => (
-          <motion.div
-            variants={imageVariants}
-            key={'images-first' + idx}
-            style={{
-              rotate: Math.random() * 20 - 10,
-            }}
-            whileHover="whileHover"
-            whileTap="whileTap"
-            className="-mr-4 mt-4 flex-shrink-0 overflow-hidden rounded-xl border border-neutral-100 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-800"
+    <div className="relative flex h-full flex-col items-start gap-4 overflow-hidden p-8">
+      <div className="flex w-full flex-col space-y-6">
+        {[1, 2, 3].map((_, idx) => (
+          <div
+            key={idx}
+            className="flex items-start space-x-4 rounded-lg bg-gray-100 p-4 shadow-md dark:bg-gray-800"
           >
-            <Image
-              src={image}
-              alt="bali images"
-              width="500"
-              height="500"
-              className="h-20 w-20 flex-shrink-0 rounded-lg object-cover md:h-40 md:w-40"
-            />
-          </motion.div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 font-bold text-white">
+              {String.fromCharCode(65 + idx)}
+            </div>
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-3/4 rounded bg-gray-300 dark:bg-gray-600" />
+              <div className="h-4 w-full rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-4 w-5/6 rounded bg-gray-200 dark:bg-gray-700" />
+            </div>
+          </div>
         ))}
       </div>
-      <div className="flex flex-row">
-        {images.map((image, idx) => (
-          <motion.div
-            key={'images-second' + idx}
-            style={{
-              rotate: Math.random() * 20 - 10,
-            }}
-            variants={imageVariants}
-            whileHover="whileHover"
-            whileTap="whileTap"
-            className="-mr-4 mt-4 flex-shrink-0 overflow-hidden rounded-xl border border-neutral-100 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-800"
-          >
-            <Image
-              src={image}
-              alt="bali images"
-              width="500"
-              height="500"
-              className="h-20 w-20 flex-shrink-0 rounded-lg object-cover md:h-40 md:w-40"
-            />
-          </motion.div>
-        ))}
+      <div className="mt-6 self-end">
+        <div className="flex h-10 w-32 items-center justify-center rounded-full bg-blue-500 font-semibold text-white">
+          Add Comment
+        </div>
       </div>
-
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-[100] h-full w-20 bg-gradient-to-r from-white to-transparent dark:from-black" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-[100] h-full w-20 bg-gradient-to-l from-white to-transparent dark:from-black" />
     </div>
   );
 };

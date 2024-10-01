@@ -18,7 +18,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { updateProjectSettings } from '../../app/(app)/[organizationSlug]/[projectSlug]/settings/project/actions';
+import { updateProjectSettings, removeAllowedDomain } from '../../app/(app)/[organizationSlug]/[projectSlug]/settings/project/actions';
 
 const projectFormSchema = z.object({
   name: z.string().min(2, {
@@ -62,10 +62,18 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
   async function onSubmit(data: ProjectFormValues) {
     setIsSubmitting(true);
     try {
+      // Diff the allowed domains and only return new ones
+      const newAllowedDomains = data.allowedDomains.filter(
+        domain =>
+          !initialData.allowed_domains.some(
+            initialDomain => initialDomain.domain === domain.domain,
+          ),
+      );
+
       await updateProjectSettings(
         initialData.slug,
         data.name,
-        data.allowedDomains,
+        newAllowedDomains,
       );
       toast({
         title: 'Project settings updated',
@@ -74,11 +82,31 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to update project settings. Please try again.',
+        description:
+          error.message ||
+          'Failed to update project settings. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleRemoveDomain(domain: string) {
+    try {
+      await removeAllowedDomain(initialData.slug, domain);
+      const updatedDomains = form.getValues('allowedDomains').filter(d => d.domain !== domain);
+      form.setValue('allowedDomains', updatedDomains);
+      toast({
+        title: 'Domain removed',
+        description: `${domain} has been removed from allowed domains.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove domain. Please try again.',
+        variant: 'destructive',
+      });
     }
   }
 
@@ -133,12 +161,7 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            const newDomains = field.value.filter(
-                              (_, i) => i !== index,
-                            );
-                            field.onChange(newDomains);
-                          }}
+                          onClick={() => handleRemoveDomain(domain.domain)}
                         >
                           <X className="h-4 w-4" />
                         </Button>

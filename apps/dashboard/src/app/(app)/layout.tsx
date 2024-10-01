@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { Toaster } from '@openpreview/ui/components/toaster';
 import { cn } from '@openpreview/ui/lib/utils';
 import { Inter } from 'next/font/google';
@@ -25,7 +25,8 @@ export default async function DashboardLayout({
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect('/login');
+    console.error('Error fetching user:', error);
+    return redirect('/login');
   }
 
   const { data: onboarding } = await supabase
@@ -35,7 +36,7 @@ export default async function DashboardLayout({
     .single();
 
   if (!onboarding?.onboarding_completed) {
-    redirect('/onboarding');
+    return redirect('/onboarding');
   }
 
   const { data: organizations } = await supabase

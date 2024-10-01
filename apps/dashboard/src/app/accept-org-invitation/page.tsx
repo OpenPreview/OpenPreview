@@ -1,6 +1,6 @@
 'use client';
 
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 

@@ -1,4 +1,4 @@
-import { createClient } from '@lib/server';
+import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
 import { UserAvatarUpload } from 'src/components/dashboard/UserAvatarUpload';

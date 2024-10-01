@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,

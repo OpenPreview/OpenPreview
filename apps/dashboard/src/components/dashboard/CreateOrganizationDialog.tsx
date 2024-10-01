@@ -1,6 +1,6 @@
 'use client';
 
-import { useSupabaseBrowser } from '@lib/client';
+import { useSupabaseBrowser } from '@openpreview/db/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Dialog,

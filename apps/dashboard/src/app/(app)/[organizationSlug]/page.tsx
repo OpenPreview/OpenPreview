@@ -1,8 +1,13 @@
-import { createClient } from '@lib/server';
-import { Card, CardContent, CardHeader, CardTitle } from "@openpreview/ui/components/card";
-import Link from 'next/link';
-import { Button } from "@openpreview/ui/components/button";
+import { createClient } from '@openpreview/db/server';
+import { Button } from '@openpreview/ui/components/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@openpreview/ui/components/card';
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 
 interface Project {
   id: string;
@@ -10,7 +15,11 @@ interface Project {
   slug: string;
 }
 
-export default async function OrganizationPage({ params }: { params: { organizationSlug: string } }) {
+export default async function OrganizationPage({
+  params,
+}: {
+  params: { organizationSlug: string };
+}) {
   const supabase = createClient();
 
   const { data: organization, error: orgError } = await supabase
@@ -37,7 +46,7 @@ export default async function OrganizationPage({ params }: { params: { organizat
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{organization.name} Projects</h1>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> Add Project
@@ -45,8 +54,11 @@ export default async function OrganizationPage({ params }: { params: { organizat
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {projects.map((project: Project) => (
-          <Link href={`/${params.organizationSlug}/${project.slug}`} key={project.id}>
-            <Card className="hover:shadow-lg transition-shadow duration-200">
+          <Link
+            href={`/${params.organizationSlug}/${project.slug}`}
+            key={project.id}
+          >
+            <Card className="transition-shadow duration-200 hover:shadow-lg">
               <CardHeader>
                 <CardTitle>{project.name}</CardTitle>
               </CardHeader>

@@ -1,0 +1,19 @@
+{
+  "name": "@openpreview/db",
+  "version": "0.0.0",
+  "scripts": {
+    "useless": "echo 'This script does nothing useful'"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.45.0",
+    "supabase": "^1.64.8",
+    "typescript": "^5.1.6",
+    "dotenv-cli": "^7.2.1"
+  }
+}
+
+
