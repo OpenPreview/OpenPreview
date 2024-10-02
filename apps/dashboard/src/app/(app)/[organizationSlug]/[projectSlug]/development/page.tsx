@@ -75,7 +75,7 @@ export default async function DevelopmentPage({
         <ul className="list-disc space-y-2 pl-6">
           <li>
             <a
-              href="https://docs.opvenpreview.io"
+              href="https://docs.openpreview.dev"
               className="text-blue-600 hover:underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -91,16 +91,6 @@ export default async function DevelopmentPage({
               rel="noopener noreferrer"
             >
               GitHub Repository
-            </a>
-          </li>
-          <li>
-            <a
-              href="https://community.opvenpreview.io"
-              className="text-blue-600 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Community Forum
             </a>
           </li>
         </ul>
