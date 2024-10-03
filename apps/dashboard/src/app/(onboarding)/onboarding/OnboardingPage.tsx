@@ -162,7 +162,9 @@ export default function OnboardingPage({user}: OboardingPageProps) {
     async function checkExistingOrganization() {
       try {
           const { pendingInvites, error: inviteError } = await fetchPendingInvites()
-
+            if (inviteError) {
+                throw new Error(inviteError);
+            }
             if (pendingInvites && pendingInvites.length > 0) {
               setStep(0)
               setPendingInvites(pendingInvites);
