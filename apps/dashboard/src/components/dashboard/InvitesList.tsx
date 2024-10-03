@@ -41,7 +41,7 @@ export function InviteList({
 
   const handleAcceptInvite = async (organizationId: string, organizationName: string, userId: string, userEmail: string) => {
     try {
-      const result = await acceptInvite(organizationId, userId, userEmail);
+      const result = await acceptInvite({organizationId});
       if (result.success) {
         toast({
           title: 'Organization accepted',
@@ -67,7 +67,7 @@ export function InviteList({
   if (pendingInvites.length === 0) return null;
 
   return (
-      <Table>
+      <Table className='mt-4'>
         <TableHeader>
           <TableRow>
             <TableHead>Organization</TableHead>

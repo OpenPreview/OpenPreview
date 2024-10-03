@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { Resend } from 'resend';
 import { Tables } from '@openpreview/supabase';
+import { redirect } from 'next/navigation';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -176,14 +177,30 @@ export async function updateMemberRole(formData: FormData) {
   }
 }
 
-export async function acceptInvite(organizationId: string, userId: string, userEmail: string) {
-  const supabase = createClient();
+export async function acceptInvite({
+  organizationId,
+  organizationSlug,
+}:{
+  organizationId?: string;
+  organizationSlug?: string;
+}) {
 
+  if (!organizationId && !organizationSlug) 
+    return {
+    success: false,
+    error: `Missing ${!organizationId ? 'Organization ID' : 'Organization Slug'}`
+  }
+  
+  const supabase = createClient();
+  const adminClient = createAdminClient()
+  const { data: {user} } = await supabase.auth.getUser();
+  if (!user && organizationSlug) return redirect( `/register?redirect=/accept-org-invitation?org=${organizationSlug}`)
+    else if (!user && !organizationSlug) return redirect('/login');
   // First, get the organization ID 
-  const { data: organization, error: orgError } = await supabase
+  const { data: organization, error: orgError } = await adminClient
     .from('organizations')
     .select('id')
-    .eq('id', organizationId)
+    .eq(organizationId ? 'id' : 'slug', organizationId ? organizationId : organizationSlug)
     .single();
 
   if (orgError) {
@@ -193,11 +210,11 @@ export async function acceptInvite(organizationId: string, userId: string, userE
 
   try {
     // Check if the user is already a member
-    const { data: existingMember, error: memberError } = await supabase
+    const { data: existingMember, error: memberError } = await adminClient
       .from('organization_members')
       .select('id')
       .eq('organization_id', organization.id)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .single();
 
     if (existingMember) {
@@ -205,17 +222,17 @@ export async function acceptInvite(organizationId: string, userId: string, userE
     }
 
     // Check if there's a pending invite
-    const { data: existingInvite, error: inviteError } = await supabase
+    const { data: existingInvite, error: inviteError } = await adminClient
       .from('organization_invitations')
       .select('id, role')
       .eq('organization_id', organization.id)
-      .eq('email', userEmail)
+      .eq('email', user.email)
       .is('accepted_at', null)
       .single();
 
     if (existingInvite) {
       // Accept invite in db
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminClient
         .from('organization_invitations')
         .update({ accepted_at: new Date().toISOString() })
         .eq('id', existingInvite.id);
@@ -227,11 +244,11 @@ export async function acceptInvite(organizationId: string, userId: string, userE
       throw new Error('No pending invitation found');
     }
 
-    const { error: orgMemberError } = await supabase
+    const { error: orgMemberError } = await adminClient
       .from('organization_members')
       .insert({
         organization_id: organization.id,
-        user_id: userId,
+        user_id: user.id,
         role: existingInvite.role,
       });
 
