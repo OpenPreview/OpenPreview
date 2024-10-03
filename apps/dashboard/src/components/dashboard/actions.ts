@@ -257,7 +257,7 @@ export async function fetchPendingInvites() {
     .select('id, organizations(*), role')
     .eq('email', user.email)
     .is('accepted_at', null)
-
+  console.log(inviteError, organizationInvite);
     if (inviteError || !organizationInvite) {
      return { pendingInvites: null, error: inviteError?.message };
     }
