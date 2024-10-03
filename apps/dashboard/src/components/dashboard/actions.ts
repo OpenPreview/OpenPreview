@@ -252,6 +252,17 @@ export async function acceptInvite({
         role: existingInvite.role,
       });
 
+      const { error: obCompleteError } = await supabase
+        .from('users')
+        .update({
+          onboarding_completed: true,
+        })
+        .eq('id', user.id);
+
+      if (obCompleteError) {
+        return { success: false, error: memberError.message };
+      }
+
     if (orgMemberError) {
       return { success: false, error: memberError.message };
     }
