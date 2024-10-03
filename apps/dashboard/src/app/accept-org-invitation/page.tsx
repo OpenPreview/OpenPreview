@@ -42,4 +42,4 @@ export default function AcceptOrgInvitation() {
       <AcceptOrgInvitationContent />
     </Suspense>
   );
-}
+} //Test
