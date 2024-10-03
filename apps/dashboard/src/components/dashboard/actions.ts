@@ -166,3 +166,73 @@ export async function updateMemberRole(formData: FormData) {
     return { success: false, error: 'Failed to update member role' };
   }
 }
+
+export async function acceptInvite(organizationId: string, userId: string, userEmail: string) {
+  const supabase = createClient();
+
+  // First, get the organization ID 
+  const { data: organization, error: orgError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('id', organizationId)
+    .single();
+
+  if (orgError) {
+    console.error('Error fetching organization:', orgError);
+    throw new Error('Failed to fetch organization');
+  }
+
+  try {
+    // Check if the user is already a member
+    const { data: existingMember, error: memberError } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organization.id)
+      .eq('user_id', userId)
+      .single();
+
+    if (existingMember) {
+      return { success: false, error: 'User is already a member of this organization' };
+    }
+
+    // Check if there's a pending invite
+    const { data: existingInvite, error: inviteError } = await supabase
+      .from('organization_invitations')
+      .select('id, role')
+      .eq('organization_id', organization.id)
+      .eq('email', userEmail)
+      .is('accepted_at', null)
+      .single();
+
+    if (existingInvite) {
+      // Accept invite in db
+      const { error: updateError } = await supabase
+        .from('organization_invitations')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('id', existingInvite.id);
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+    } else {
+      throw new Error('No pending invitation found');
+    }
+
+    const { error: orgMemberError } = await supabase
+      .from('organization_members')
+      .insert({
+        organization_id: organization.id,
+        user_id: userId,
+        role: existingInvite.role,
+      });
+
+    if (orgMemberError) {
+      return { success: false, error: memberError.message };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error inviting member:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to invite member' };
+  }
+}
