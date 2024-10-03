@@ -29,7 +29,7 @@ export interface PendingInvite {
 
 interface InviteListProps {
   user: User;
-  pendingInvites: PendingInvite[];
+  pendingInvites: PendingInvite[] | null
 }
 
 export function InviteList({

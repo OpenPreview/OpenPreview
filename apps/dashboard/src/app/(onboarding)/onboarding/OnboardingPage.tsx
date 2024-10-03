@@ -150,7 +150,7 @@ interface OboardingPageProps {
 export default function OnboardingPage({user}: OboardingPageProps) {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[] | null>(null);
   const [organizationSlug, setOrganizationSlug] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const router = useRouter();
