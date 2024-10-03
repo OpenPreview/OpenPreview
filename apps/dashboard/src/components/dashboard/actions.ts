@@ -247,17 +247,18 @@ export async function acceptInvite(organizationId: string, userId: string, userE
 }
 
 export async function fetchPendingInvites() {
-  const supabase = createAdminClient();
+  const supabase = createClient();
+  const adminClient = createAdminClient();
 
   const { data: {user}} = await supabase.auth.getUser();
   if (!user) throw new Error('User not found');
 
-  const { data: organizationInvite, error: inviteError } = await supabase
+  const { data: organizationInvite, error: inviteError } = await adminClient
     .from('organization_invitations')
     .select('id, organizations(*), role')
     .eq('email', user.email)
     .is('accepted_at', null)
-  console.log(inviteError, organizationInvite);
+    
     if (inviteError || !organizationInvite) {
      return { pendingInvites: null, error: inviteError?.message };
     }
