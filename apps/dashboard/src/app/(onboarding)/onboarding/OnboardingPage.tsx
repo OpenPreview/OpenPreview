@@ -166,7 +166,6 @@ export default function OnboardingPage({user}: OboardingPageProps) {
                 throw new Error(inviteError);
             }
             if (pendingInvites && pendingInvites.length > 0) {
-              setStep(0)
               setPendingInvites(pendingInvites);
               return;
             }
@@ -339,8 +338,6 @@ export default function OnboardingPage({user}: OboardingPageProps) {
           </p>
           {isInitialLoading ? (
             <LoadingSkeleton />
-          ) : step === 0 ? (
-            <InviteList user={user} pendingInvites={pendingInvites} />
           ) : step === 1 ? (
             <OrganizationForm
               onSubmit={onOrganizationSubmit}
@@ -348,6 +345,9 @@ export default function OnboardingPage({user}: OboardingPageProps) {
             />
           ) : (
             <ProjectForm onSubmit={onProjectSubmit} isLoading={isLoading} />
+          )}
+          {step === 1 && pendingInvites && pendingInvites.length > 0 && (
+            <InviteList user={user} pendingInvites={pendingInvites} />
           )}
         </CardContent>
       </Card>
