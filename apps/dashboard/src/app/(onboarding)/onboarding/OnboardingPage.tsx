@@ -24,6 +24,7 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { fetchPendingInvites } from 'src/components/dashboard/actions';
 import { InviteList, PendingInvite } from 'src/components/dashboard/InvitesList';
 import * as z from 'zod';
 
@@ -160,11 +161,7 @@ export default function OnboardingPage({user}: OboardingPageProps) {
   useEffect(() => {
     async function checkExistingOrganization() {
       try {
-          const { data: pendingInvites, error: pendingInviteError } = await supabase
-            .from('organization_invitations')
-            .select('id, organizations(*), role')
-            .eq('email', user.email)
-            .is('accepted_at', null);
+          const { pendingInvites, error: inviteError } = await fetchPendingInvites()
 
             if (pendingInvites && pendingInvites.length > 0) {
               setStep(0)

@@ -7,6 +7,7 @@ import { OpenPreviewInviteUserEmail } from '@openpreview/transactional/emails/op
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { Resend } from 'resend';
+import { Tables } from '@openpreview/supabase';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -244,3 +245,22 @@ export async function acceptInvite(organizationId: string, userId: string, userE
     return { success: false, error: error instanceof Error ? error.message : 'Failed to invite member' };
   }
 }
+
+export async function fetchPendingInvites() {
+  const supabase = createAdminClient();
+
+  const { data: {user}} = await supabase.auth.getUser();
+  if (!user) throw new Error('User not found');
+
+  const { data: organizationInvite, error: inviteError } = await supabase
+    .from('organization_invitations')
+    .select('id, organization(*), role')
+    .eq('email', user.email)
+    .is('accepted_at', null)
+
+    if (inviteError || !organizationInvite) {
+     return { pendingInvites: null, error: inviteError?.message };
+    }
+
+    return { pendingInvites: organizationInvite, error: null };
+  }
