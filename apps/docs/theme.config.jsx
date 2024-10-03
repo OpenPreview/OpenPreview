@@ -18,7 +18,6 @@ export default {
   project: {
     link: 'https://github.com/OpenPreview/OpenPreview',
   },
-  // ... other theme options
   useNextSeoProps() {
     return {
       titleTemplate: '%s – OpenPreview',
