@@ -254,7 +254,7 @@ export async function fetchPendingInvites() {
 
   const { data: organizationInvite, error: inviteError } = await supabase
     .from('organization_invitations')
-    .select('id, organization(*), role')
+    .select('id, organizations(*), role')
     .eq('email', user.email)
     .is('accepted_at', null)
 

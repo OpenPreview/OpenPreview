@@ -1,3 +1,4 @@
+import { Database } from '@openpreview/supabase'
 import { createClient } from '@supabase/supabase-js'
 import 'server-only'
 
@@ -9,7 +10,7 @@ export function createAdminClient() {
     throw new Error('Missing Supabase URL or service role key')
   }
 
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+  return createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
