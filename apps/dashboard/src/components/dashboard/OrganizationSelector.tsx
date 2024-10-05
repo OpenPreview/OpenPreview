@@ -50,7 +50,7 @@ export function OrganizationSelector({
               <div className="flex items-center">
                 <Avatar className="mr-2 h-6 w-6">
                   <AvatarImage
-                    src={`${org.logo_url}?t=${org.logo_updated_at}`}
+                    src={`${org.logo_url}`}
                     alt={`${org.name} logo`}
                   />
                   <AvatarFallback>{org.name.slice(0, 2)}</AvatarFallback>

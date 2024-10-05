@@ -53,7 +53,7 @@ export default async function UserSettingsPage({
       <Separator />
       <UserAvatarUpload
         userId={userSettings.id}
-        currentAvatarUrl={`${userSettings.avatar_url}?t=${userSettings.avatar_updated_at}`}
+        currentAvatarUrl={`${userSettings.avatar_url}`}
         userName={userSettings.name}
       />
       <UserForm initialData={userSettings} />

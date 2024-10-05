@@ -78,13 +78,17 @@ export function OrganizationLogoUpload({
       // Update organization record
       const { error: updateError } = await supabase
         .from('organizations')
-        .update({ logo_url: publicUrl })
+        .update({
+          logo_url: `${publicUrl}?t=${new Date(Date.now() + 60000).toISOString()}`,
+        })
         .eq('slug', organizationSlug)
         .select();
 
       if (updateError) throw updateError;
 
-      setPreviewImage(publicUrl);
+      setPreviewImage(
+        `${publicUrl}?t=${new Date(Date.now() + 60000).toISOString()}`,
+      );
       toast({
         title: 'Logo updated',
         description: 'Your organization logo has been successfully updated.',

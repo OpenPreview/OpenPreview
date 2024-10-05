@@ -1,7 +1,5 @@
-'use client';
+import { createClient } from '@openpreview/db/server';
 
-import { useSupabaseBrowser } from '@openpreview/db/client';
-import { useEffect, useState } from 'react';
 
 export interface Organization {
   id: string;
@@ -11,35 +9,17 @@ export interface Organization {
   logo_updated_at?: string | null;
 }
 
-export function useFetchOrganizations() {
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const supabase = useSupabaseBrowser();
+export async function fetchOrganizations(): Promise<Organization[]> {
+  const supabase = createClient();
 
-  useEffect(() => {
-    async function fetchOrganizations() {
-      setIsLoading(true);
-      setError(null);
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id, name, slug, logo_url, logo_updated_at');
 
-      try {
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('id, name, slug, logo_url, logo_updated_at');
+  if (error) {
+    console.error('Error fetching organizations:', error);
+    return [];
+  }
 
-        if (error) throw error;
-
-        setOrganizations(data);
-      } catch (err) {
-        console.error('Error fetching organizations:', err);
-        setError(err instanceof Error ? err : new Error('An unknown error occurred'));
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchOrganizations();
-  }, [supabase]);
-
-  return { organizations, isLoading, error };
+  return data;
 }

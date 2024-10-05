@@ -51,6 +51,23 @@ create table "public"."organization_members" (
 
 alter table "public"."organization_members" enable row level security;
 
+CREATE OR REPLACE FUNCTION public.generate_random_slug()
+ RETURNS text
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  chars TEXT := 'abcdefghijklmnopqrstuvwxyz0123456789';
+  result TEXT := '';
+  i INT;
+BEGIN
+  FOR i IN 1..10 LOOP
+    result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
+  END LOOP;
+  RETURN result;
+END;
+$function$
+;
+
 create table "public"."organizations" (
     "id" uuid not null default gen_random_uuid(),
     "name" text not null,
@@ -105,6 +122,8 @@ alter table "public"."users" enable row level security;
 
 CREATE UNIQUE INDEX allowed_domains_pkey ON public.allowed_domains USING btree (id);
 
+CREATE UNIQUE INDEX allowed_domains_project_id_domain_key ON public.allowed_domains USING btree (project_id, domain);
+
 CREATE UNIQUE INDEX comments_pkey ON public.comments USING btree (id);
 
 CREATE UNIQUE INDEX organization_invitations_pkey ON public.organization_invitations USING btree (id);
@@ -120,6 +139,12 @@ CREATE UNIQUE INDEX project_members_pkey ON public.project_members USING btree (
 CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id);
 
 CREATE UNIQUE INDEX projects_slug_key ON public.projects USING btree (slug);
+
+CREATE UNIQUE INDEX unique_org_invite_email ON public.organization_invitations USING btree (organization_id, email);
+
+CREATE UNIQUE INDEX unique_org_member ON public.organization_members USING btree (organization_id, user_id);
+
+CREATE UNIQUE INDEX unique_org_member_email ON public.organization_members USING btree (organization_id, user_id);
 
 CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email);
 
@@ -140,6 +165,8 @@ alter table "public"."project_members" add constraint "project_members_pkey" PRI
 alter table "public"."projects" add constraint "projects_pkey" PRIMARY KEY using index "projects_pkey";
 
 alter table "public"."users" add constraint "users_pkey" PRIMARY KEY using index "users_pkey";
+
+alter table "public"."allowed_domains" add constraint "allowed_domains_project_id_domain_key" UNIQUE using index "allowed_domains_project_id_domain_key";
 
 alter table "public"."allowed_domains" add constraint "allowed_domains_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE not valid;
 
@@ -165,6 +192,8 @@ alter table "public"."organization_invitations" add constraint "organization_inv
 
 alter table "public"."organization_invitations" validate constraint "organization_invitations_organization_id_fkey";
 
+alter table "public"."organization_invitations" add constraint "unique_org_invite_email" UNIQUE using index "unique_org_invite_email";
+
 alter table "public"."organization_members" add constraint "organization_members_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE not valid;
 
 alter table "public"."organization_members" validate constraint "organization_members_organization_id_fkey";
@@ -172,6 +201,10 @@ alter table "public"."organization_members" validate constraint "organization_me
 alter table "public"."organization_members" add constraint "organization_members_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE not valid;
 
 alter table "public"."organization_members" validate constraint "organization_members_user_id_fkey";
+
+alter table "public"."organization_members" add constraint "unique_org_member" UNIQUE using index "unique_org_member";
+
+alter table "public"."organization_members" add constraint "unique_org_member_email" UNIQUE using index "unique_org_member_email";
 
 alter table "public"."organizations" add constraint "organizations_slug_key" UNIQUE using index "organizations_slug_key";
 
@@ -196,23 +229,6 @@ alter table "public"."users" add constraint "users_id_fkey" FOREIGN KEY (id) REF
 alter table "public"."users" validate constraint "users_id_fkey";
 
 set check_function_bodies = off;
-
-CREATE OR REPLACE FUNCTION public.generate_random_slug()
- RETURNS text
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  chars TEXT := 'abcdefghijklmnopqrstuvwxyz0123456789';
-  result TEXT := '';
-  i INT;
-BEGIN
-  FOR i IN 1..10 LOOP
-    result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
-  END LOOP;
-  RETURN result;
-END;
-$function$
-;
 
 CREATE OR REPLACE FUNCTION public.get_comments_with_replies(project_id uuid)
  RETURNS jsonb
@@ -282,6 +298,19 @@ WHERE ct.parent_id IS NULL;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.handle_new_organization()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  INSERT INTO public.organization_members (organization_id, user_id, role)
+  VALUES (NEW.id, auth.uid(), 'owner');
+  RETURN NEW;
+END;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -295,17 +324,48 @@ END;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.has_organization_role(_user_id uuid, _organization_id uuid, _roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM organization_members
+    WHERE organization_id = _organization_id
+    AND user_id = _user_id
+    AND role = ANY(_roles)
+  );
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.has_project_role(_user_id uuid, _project_id uuid, _roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM organization_members
+    JOIN projects ON projects.organization_id = organization_members.organization_id
+    WHERE projects.id = _project_id
+    AND organization_members.user_id = _user_id
+    AND organization_members.role = ANY(_roles)
+  );
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.is_member_of(_user_id uuid, _organization_id uuid)
  RETURNS boolean
  LANGUAGE sql
  SECURITY DEFINER
 AS $function$
-SELECT EXISTS (
-  SELECT 1
-  FROM organization_members om
-  WHERE om.organization_id = _organization_id
-  AND om.user_id = _user_id
-);
+  SELECT EXISTS (
+    SELECT 1
+    FROM organization_members
+    WHERE organization_id = _organization_id
+    AND user_id = _user_id
+  );
 $function$
 ;
 
@@ -676,10 +736,7 @@ on "public"."allowed_domains"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = allowed_domains.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "allowed_domains_insert_policy"
@@ -687,10 +744,7 @@ on "public"."allowed_domains"
 as permissive
 for insert
 to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = allowed_domains.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+with check (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "allowed_domains_select_policy"
@@ -698,10 +752,7 @@ on "public"."allowed_domains"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = allowed_domains.project_id) AND (organization_members.user_id = auth.uid())))));
+using (has_project_role(auth.uid(), project_id, ARRAY['member'::text, 'admin'::text, 'owner'::text]));
 
 
 create policy "allowed_domains_update_policy"
@@ -709,10 +760,7 @@ on "public"."allowed_domains"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = allowed_domains.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "comment_delete_policy"
@@ -720,10 +768,7 @@ on "public"."comments"
 as permissive
 for delete
 to authenticated
-using (((user_id = auth.uid()) OR (EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = comments.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text])))))));
+using (((user_id = auth.uid()) OR has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text])));
 
 
 create policy "comment_insert_policy"
@@ -731,10 +776,7 @@ on "public"."comments"
 as permissive
 for insert
 to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = comments.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role <> 'viewer'::text)))));
+with check (has_project_role(auth.uid(), project_id, ARRAY['editor'::text, 'admin'::text, 'owner'::text]));
 
 
 create policy "comment_select_policy"
@@ -742,10 +784,7 @@ on "public"."comments"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = comments.project_id) AND (organization_members.user_id = auth.uid())))));
+using (has_project_role(auth.uid(), project_id, ARRAY['member'::text, 'admin'::text, 'editor'::text, 'owner'::text]));
 
 
 create policy "comment_update_policy"
@@ -753,7 +792,7 @@ on "public"."comments"
 as permissive
 for update
 to authenticated
-using ((user_id = auth.uid()));
+using (((user_id = auth.uid()) OR has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text])));
 
 
 create policy "org_invitation_delete_policy"
@@ -761,9 +800,7 @@ on "public"."organization_invitations"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organization_invitations.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "org_invitation_insert_policy"
@@ -771,9 +808,7 @@ on "public"."organization_invitations"
 as permissive
 for insert
 to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organization_invitations.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+with check (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "org_invitation_select_policy"
@@ -781,9 +816,7 @@ on "public"."organization_invitations"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organization_invitations.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "org_invitation_update_policy"
@@ -791,9 +824,7 @@ on "public"."organization_invitations"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organization_invitations.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "org_member_delete_policy"
@@ -801,9 +832,7 @@ on "public"."organization_members"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members om
-  WHERE ((om.organization_id = organization_members.organization_id) AND (om.user_id = auth.uid()) AND (om.role = 'owner'::text)))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['owner'::text]));
 
 
 create policy "org_member_insert_policy"
@@ -811,9 +840,7 @@ on "public"."organization_members"
 as permissive
 for insert
 to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM organization_members organization_members_1
-  WHERE ((organization_members_1.organization_id = organization_members_1.organization_id) AND (organization_members_1.user_id = auth.uid()) AND (organization_members_1.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+with check (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "org_member_select_policy"
@@ -821,9 +848,7 @@ on "public"."organization_members"
 as permissive
 for select
 to authenticated
-using (((user_id = auth.uid()) OR (EXISTS ( SELECT 1
-   FROM organization_members om
-  WHERE ((om.organization_id = organization_members.organization_id) AND (om.user_id = auth.uid()))))));
+using (((user_id = auth.uid()) OR is_member_of(auth.uid(), organization_id)));
 
 
 create policy "org_member_update_policy"
@@ -831,9 +856,7 @@ on "public"."organization_members"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members om
-  WHERE ((om.organization_id = organization_members.organization_id) AND (om.user_id = auth.uid()) AND (om.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (((auth.uid() = user_id) OR has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text])));
 
 
 create policy "organization_delete_policy"
@@ -841,9 +864,7 @@ on "public"."organizations"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organizations.id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = 'owner'::text)))));
+using (has_organization_role(auth.uid(), id, ARRAY['owner'::text]));
 
 
 create policy "organization_insert_policy"
@@ -859,9 +880,7 @@ on "public"."organizations"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organizations.id) AND (organization_members.user_id = auth.uid())))));
+using (is_member_of(auth.uid(), id));
 
 
 create policy "organization_update_policy"
@@ -869,12 +888,7 @@ on "public"."organizations"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organizations.id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))))
-with check ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = organizations.id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_organization_role(auth.uid(), id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_member_delete_policy"
@@ -882,10 +896,7 @@ on "public"."project_members"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = project_members.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_member_insert_policy"
@@ -893,10 +904,7 @@ on "public"."project_members"
 as permissive
 for insert
 to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = project_members.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+with check (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_member_select_policy"
@@ -904,10 +912,7 @@ on "public"."project_members"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = project_members.project_id) AND (organization_members.user_id = auth.uid())))));
+using (((user_id = auth.uid()) OR has_project_role(auth.uid(), project_id, ARRAY['member'::text, 'admin'::text, 'owner'::text])));
 
 
 create policy "project_member_update_policy"
@@ -915,10 +920,7 @@ on "public"."project_members"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM (organization_members
-     JOIN projects ON ((projects.organization_id = organization_members.organization_id)))
-  WHERE ((projects.id = project_members.project_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_project_role(auth.uid(), project_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_delete_policy"
@@ -926,9 +928,7 @@ on "public"."projects"
 as permissive
 for delete
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = projects.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = 'owner'::text)))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_insert_policy"
@@ -936,7 +936,7 @@ on "public"."projects"
 as permissive
 for insert
 to authenticated
-with check (true);
+with check (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
 
 
 create policy "project_select_policy"
@@ -944,9 +944,7 @@ on "public"."projects"
 as permissive
 for select
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = projects.organization_id) AND (organization_members.user_id = auth.uid())))));
+using (is_member_of(auth.uid(), organization_id));
 
 
 create policy "project_update_policy"
@@ -954,9 +952,15 @@ on "public"."projects"
 as permissive
 for update
 to authenticated
-using ((EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.organization_id = projects.organization_id) AND (organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['admin'::text, 'owner'::text]))))));
+using (has_organization_role(auth.uid(), organization_id, ARRAY['admin'::text, 'owner'::text]));
+
+
+create policy "user_delete_policy"
+on "public"."users"
+as permissive
+for delete
+to public
+using (false);
 
 
 create policy "user_insert_policy"
@@ -973,10 +977,10 @@ as permissive
 for select
 to authenticated
 using (((auth.uid() = id) OR (EXISTS ( SELECT 1
-   FROM organization_members
-  WHERE ((organization_members.user_id = auth.uid()) AND (organization_members.organization_id IN ( SELECT organization_members_1.organization_id
-           FROM organization_members organization_members_1
-          WHERE (organization_members_1.user_id = users.id))))))));
+   FROM organization_members om1
+  WHERE ((om1.user_id = auth.uid()) AND (EXISTS ( SELECT 1
+           FROM organization_members om2
+          WHERE ((om2.organization_id = om1.organization_id) AND (om2.user_id = users.id)))))))));
 
 
 create policy "user_update_policy"
@@ -987,10 +991,61 @@ to authenticated
 using ((auth.uid() = id));
 
 
+CREATE TRIGGER on_organization_created AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION handle_new_organization();
+
 CREATE TRIGGER update_logo_updated_at_trigger BEFORE UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION update_logo_updated_at();
 
 CREATE TRIGGER update_avatar_updated_at_trigger BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION update_avatar_updated_at();
 
--- Add a unique constraint to organization_invitations table
-ALTER TABLE organization_invitations
-ADD CONSTRAINT unique_org_invite_email UNIQUE (organization_id, email);
+-- Create public buckets
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'organization_logos', 'organization_logos', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'organization_logos'
+);
+
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'user_avatars', 'user_avatars', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'user_avatars'
+);
+
+-- Storage policies for organization logos
+CREATE POLICY "Anyone can update organization logos."
+ON storage.objects
+FOR UPDATE
+TO public
+USING (bucket_id = 'organization_logos')
+WITH CHECK (bucket_id = 'organization_logos');
+
+CREATE POLICY "Anyone can upload organization logos."
+ON storage.objects
+FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'organization_logos');
+
+CREATE POLICY "Organization logos are publicly accessible."
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'organization_logos');
+
+-- Storage policies for user avatars
+CREATE POLICY "Anyone can upload avatars."
+ON storage.objects
+FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'user_avatars');
+
+CREATE POLICY "User avatars are publicly accessible."
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'user_avatars');
+
+CREATE POLICY "Users can update their own avatar."
+ON storage.objects
+FOR UPDATE
+TO public
+USING (bucket_id = 'user_avatars' AND auth.uid() = owner)
+WITH CHECK (bucket_id = 'user_avatars');

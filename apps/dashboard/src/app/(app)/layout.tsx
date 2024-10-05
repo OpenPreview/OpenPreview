@@ -10,11 +10,7 @@ const inter = Inter({
   display: 'swap',
 });
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <body
       className={cn(

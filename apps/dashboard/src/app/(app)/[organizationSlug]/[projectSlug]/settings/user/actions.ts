@@ -20,7 +20,7 @@ export async function updateUserSettings(
     throw new Error('Failed to update user settings')
   }
 
-  revalidatePath('/settings/user')
+  revalidatePath(`/[organizationSlug]/[projectSlug]/settings/user`)
 }
 
 export async function updateUserAvatar(formData: FormData) {
@@ -59,7 +59,7 @@ export async function updateUserAvatar(formData: FormData) {
 
     if (updateError) throw updateError
 
-    revalidatePath(`/${organizationSlug}/${projectSlug}/settings/user`)
+    revalidatePath(`/[organizationSlug]/[projectSlug]/settings/user`)
 
     return publicUrl
   } catch (error) {

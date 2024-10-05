@@ -13,6 +13,7 @@ import {
 } from '@openpreview/ui/components/form';
 import { Input } from '@openpreview/ui/components/input';
 import { toast } from '@openpreview/ui/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -40,7 +41,7 @@ export function OrganizationForm({
   projectSlug,
 }: OrganizationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const router = useRouter();
   const form = useForm<OrganizationFormValues>({
     resolver: zodResolver(organizationFormSchema),
     defaultValues: {

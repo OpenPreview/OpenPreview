@@ -63,13 +63,17 @@ export function UserAvatarUpload({
 
       const { error: updateError } = await supabase
         .from('users')
-        .update({ avatar_url: publicUrl })
+        .update({
+          avatar_url: `${publicUrl}?t=${new Date(Date.now() + 60000).toISOString()}`,
+        })
         .eq('id', userId)
         .select();
 
       if (updateError) throw updateError;
 
-      setPreviewImage(`${publicUrl}?t=${new Date().toISOString()}`);
+      setPreviewImage(
+        `${publicUrl}?t=${new Date(Date.now() + 60000).toISOString()}`,
+      );
       toast({
         title: 'Avatar updated',
         description: 'Your avatar has been successfully updated.',

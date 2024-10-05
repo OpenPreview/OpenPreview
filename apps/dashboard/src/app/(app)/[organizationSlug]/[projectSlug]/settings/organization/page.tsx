@@ -47,7 +47,7 @@ export default async function OrganizationSettingsPage({
       <Separator />
       <OrganizationLogoUpload
         organizationSlug={organizationSettings.slug}
-        currentLogoUrl={`${organizationSettings.logo_url}?t=${organizationSettings.logo_updated_at}`}
+        currentLogoUrl={`${organizationSettings.logo_url}`}
         organizationName={organizationSettings.name}
       />
       <OrganizationForm
