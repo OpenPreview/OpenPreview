@@ -1,46 +1,29 @@
-import { createClient } from '@openpreview/db/server';
+'use client';
+
+import { useUser } from '@openpreview/db/hooks/useUser/client';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from '@openpreview/ui/components/avatar';
 import { Button } from '@openpreview/ui/components/button';
-import { redirect } from 'next/navigation';
+import { Skeleton } from '@openpreview/ui/components/skeleton';
+import { handleSignOut } from './actions';
 
-interface DatabaseUser {
-  id: string;
-  name: string;
-  avatar_url: string;
-}
+export function Header() {
+  const { user, isLoading } = useUser();
 
-export async function Header() {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let dbUser: DatabaseUser | null = null;
-
-  if (user) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, avatar_url')
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching user data:', error);
-    } else {
-      dbUser = data;
-    }
-  }
-
-  async function handleSignOut() {
-    'use server';
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    redirect('/');
+  if (isLoading) {
+    return (
+      <header className="bg-background border-b">
+        <div className="container flex h-14 items-center justify-end px-4 sm:px-6">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Skeleton className="h-8 w-8 rounded-full sm:h-10 sm:w-10" />
+            <Skeleton className="h-8 w-20 sm:h-10 sm:w-24" />
+          </div>
+        </div>
+      </header>
+    );
   }
 
   return (
@@ -49,11 +32,11 @@ export async function Header() {
         <div className="flex items-center space-x-2 sm:space-x-4">
           <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
             <AvatarImage
-              src={dbUser?.avatar_url || undefined}
-              alt={dbUser?.name || 'User avatar'}
+              src={`${user?.avatar_url}?t=${user?.avatar_updated_at}`}
+              alt={user?.name || 'User avatar'}
             />
             <AvatarFallback>
-              {dbUser?.name ? dbUser.name.charAt(0).toUpperCase() : 'U'}
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </AvatarFallback>
           </Avatar>
           <form action={handleSignOut}>

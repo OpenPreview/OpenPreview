@@ -21,6 +21,8 @@
     "@openpreview/tsconfig": "*",
     "@openpreview/eslint-config-custom": "*",
     "@openpreview/ui": "*",
+    "@openpreview/transactional": "*",
+    "@openpreview/supabase": "*",
     "@openpreview/db": "*"
   }
 }

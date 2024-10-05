@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import {
@@ -20,6 +21,7 @@ export default async function OrganizationPage({
 }: {
   params: { organizationSlug: string };
 }) {
+  const { user } = await useUser();
   const supabase = createClient();
 
   const { data: organization, error: orgError } = await supabase

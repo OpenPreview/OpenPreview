@@ -1,8 +1,6 @@
-import { createClient } from '@openpreview/db/server';
 import { Toaster } from '@openpreview/ui/components/toaster';
 import { cn } from '@openpreview/ui/lib/utils';
 import { Inter } from 'next/font/google';
-import { redirect } from 'next/navigation';
 import { Header } from 'src/components/dashboard/Header';
 import { Sidebar } from 'src/components/dashboard/Sidebar';
 
@@ -17,33 +15,6 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    console.error('Error fetching user:', error);
-    return redirect('/login');
-  }
-
-  const { data: onboarding } = await supabase
-    .from('users')
-    .select('onboarding_completed')
-    .eq('id', user.id)
-    .single();
-
-  if (!onboarding?.onboarding_completed) {
-    return redirect('/onboarding');
-  }
-
-  const { data: organizations } = await supabase
-    .from('organizations')
-    .select('id, name, slug, logo_url')
-    .order('name');
-
   return (
     <body
       className={cn(
@@ -52,7 +23,7 @@ export default async function DashboardLayout({
       )}
     >
       <div className="flex h-screen">
-        <Sidebar organizations={organizations || []} />
+        <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
           <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">

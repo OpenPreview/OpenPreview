@@ -52,13 +52,18 @@ export function OrganizationLogoUpload({
       } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${organizationSlug}.${fileExt}`;
+      // Convert image to PNG
+      const pngBlob = await convertToPNG(file);
+      const pngFile = new File([pngBlob], `${file.name}.png`, {
+        type: 'image/png',
+      });
+
+      const fileName = `${organizationSlug}.png`;
 
       // Upload file to 'organization_logos' bucket
       const { error: uploadError } = await supabase.storage
         .from('organization_logos')
-        .upload(fileName, file, {
+        .upload(fileName, pngFile, {
           cacheControl: '3600',
           upsert: true,
         });
@@ -102,6 +107,33 @@ export function OrganizationLogoUpload({
 
   function handleButtonClick() {
     fileInputRef.current?.click();
+  }
+
+  // Function to convert image to PNG
+  async function convertToPNG(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(blob => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to convert image to PNG'));
+          }
+        }, 'image/png');
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   return (

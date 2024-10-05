@@ -1,6 +1,7 @@
 'use client';
 
 import { useSupabaseBrowser } from '@openpreview/db/client';
+import { useUser } from '@openpreview/db/hooks/useUser/client';
 import { Button } from '@openpreview/ui/components/button';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Textarea } from '@openpreview/ui/components/textarea';
@@ -34,6 +35,7 @@ interface CommentsPageProps {
 }
 
 export default function CommentsPage({ params }: CommentsPageProps) {
+  const { user } = useUser();
   const [project, setProject] = useState<{ id: string; name: string } | null>(
     null,
   );

@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { CodeBlock } from '@openpreview/ui/components/code-block';
 import { Separator } from '@openpreview/ui/components/separator';
@@ -34,6 +35,7 @@ async function getProjectDetails(
 export default async function DevelopmentPage({
   params,
 }: DevelopmentPageProps) {
+  const { user } = await useUser();
   const project = await getProjectDetails(
     params.organizationSlug,
     params.projectSlug,

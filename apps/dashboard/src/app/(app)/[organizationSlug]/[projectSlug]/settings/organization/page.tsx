@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
@@ -13,7 +14,7 @@ async function getOrganizationSettings(organizationSlug: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('organizations')
-    .select('name, slug, logo_url')
+    .select('name, slug, logo_url, logo_updated_at')
     .eq('slug', organizationSlug)
     .single();
 
@@ -30,6 +31,7 @@ export default async function OrganizationSettingsPage({
 }: {
   params: { organizationSlug: string; projectSlug: string };
 }) {
+  const { user } = await useUser();
   const organizationSettings = await getOrganizationSettings(
     params.organizationSlug,
   );
@@ -45,7 +47,7 @@ export default async function OrganizationSettingsPage({
       <Separator />
       <OrganizationLogoUpload
         organizationSlug={organizationSettings.slug}
-        currentLogoUrl={organizationSettings.logo_url}
+        currentLogoUrl={`${organizationSettings.logo_url}?t=${organizationSettings.logo_updated_at}`}
         organizationName={organizationSettings.name}
       />
       <OrganizationForm

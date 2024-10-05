@@ -6,6 +6,7 @@ import { createClient } from '@openpreview/db/server';
 import { OpenPreviewInviteUserEmail } from '@openpreview/transactional/emails/opv-invite-user';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -165,4 +166,10 @@ export async function updateMemberRole(formData: FormData) {
     console.error('Error updating member role:', error);
     return { success: false, error: 'Failed to update member role' };
   }
+}
+
+export async function handleSignOut() {
+  const supabase = createClient();
+  await supabase.auth.signOut();
+  redirect('/');
 }

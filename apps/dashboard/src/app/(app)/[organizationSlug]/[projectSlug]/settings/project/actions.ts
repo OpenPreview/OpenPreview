@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 export async function updateProjectSettings(
   projectSlug: string,
   name: string,
-  allowedDomains?: { domain?: string }[]
+  newAllowedDomains?: { domain?: string }[]
 ) {
   const supabase = createClient()
 
@@ -37,21 +37,17 @@ export async function updateProjectSettings(
     throw new Error(updateError.message || 'Failed to update project settings')
   }
 
-  // Update allowed domains
-  const { error: domainsError } = await supabase
-    .from('allowed_domains')
-    .delete()
-    .eq('project_id', project.id)
-
-  if (domainsError) {
-    console.error('Error deleting old domains:', domainsError)
-    throw new Error('Failed to update allowed domains')
-  }
-
-  if (allowedDomains && allowedDomains.length > 0) {
+  // Insert new allowed domains without replacing existing ones
+  if (newAllowedDomains && newAllowedDomains.length > 0) {
     const { error: insertError } = await supabase
       .from('allowed_domains')
-      .insert(allowedDomains.map(domain => ({ project_id: project.id, domain: domain.domain })))
+      .upsert(
+        newAllowedDomains.map(domain => ({ 
+          project_id: project.id, 
+          domain: domain.domain 
+        })),
+        { onConflict: 'project_id, domain' }
+      )
 
     if (insertError) {
       console.error('Error inserting new domains:', insertError)

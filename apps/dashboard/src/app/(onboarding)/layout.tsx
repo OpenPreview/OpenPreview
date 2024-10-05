@@ -14,24 +14,6 @@ export default async function OnboardingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('onboarding_completed')
-    .eq('id', user.id)
-    .single();
-
-  if (userData?.onboarding_completed) {
-    redirect('/');
-  }
 
   return (
     <body

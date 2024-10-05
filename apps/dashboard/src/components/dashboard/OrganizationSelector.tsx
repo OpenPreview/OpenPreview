@@ -1,5 +1,6 @@
 'use client';
 
+import { Organization } from '@openpreview/db/hooks/useOrganization';
 import {
   Avatar,
   AvatarFallback,
@@ -13,13 +14,6 @@ import {
   SelectValue,
 } from '@openpreview/ui/components/select';
 import { usePathname, useRouter } from 'next/navigation';
-
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url?: string;
-}
 
 interface OrganizationSelectorProps {
   organizations: Organization[];
@@ -35,6 +29,8 @@ export function OrganizationSelector({
   const handleOrganizationChange = (slug: string) => {
     router.push(`/${slug}`);
   };
+
+  console.log(organizations);
 
   return (
     <div className="mb-4">
@@ -53,7 +49,10 @@ export function OrganizationSelector({
             <SelectItem key={org.id} value={org.slug}>
               <div className="flex items-center">
                 <Avatar className="mr-2 h-6 w-6">
-                  <AvatarImage src={org.logo_url} alt={`${org.name} logo`} />
+                  <AvatarImage
+                    src={`${org.logo_url}?t=${org.logo_updated_at}`}
+                    alt={`${org.name} logo`}
+                  />
                   <AvatarFallback>{org.name.slice(0, 2)}</AvatarFallback>
                 </Avatar>
                 {org.name}

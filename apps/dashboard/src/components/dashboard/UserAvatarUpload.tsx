@@ -32,24 +32,25 @@ export function UserAvatarUpload({
   const router = useRouter();
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const formData = new FormData();
     const file = event.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = e => {
-      setPreviewImage(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}.${fileExt}`;
+      // Convert image to PNG
+      const pngFile = await convertToPng(file);
 
-      const { error: uploadError } = await supabase.storage
+      const reader = new FileReader();
+      reader.onload = e => {
+        setPreviewImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(pngFile);
+
+      const fileName = `${userId}.png`;
+
+      const { data, error: uploadError } = await supabase.storage
         .from('user_avatars')
-        .upload(fileName, file, {
+        .upload(fileName, pngFile, {
           cacheControl: '3600',
           upsert: true,
         });
@@ -68,13 +69,12 @@ export function UserAvatarUpload({
 
       if (updateError) throw updateError;
 
-      setPreviewImage(publicUrl);
+      setPreviewImage(`${publicUrl}?t=${new Date().toISOString()}`);
       toast({
         title: 'Avatar updated',
         description: 'Your avatar has been successfully updated.',
       });
 
-      // Refresh the page after successful upload
       router.refresh();
     } catch (error) {
       console.error('Error updating avatar:', error);
@@ -91,6 +91,32 @@ export function UserAvatarUpload({
 
   function handleButtonClick() {
     fileInputRef.current?.click();
+  }
+
+  async function convertToPng(file: File): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(blob => {
+          if (blob) {
+            resolve(new File([blob], 'avatar.png', { type: 'image/png' }));
+          } else {
+            reject(new Error('Failed to convert image to PNG'));
+          }
+        }, 'image/png');
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   return (

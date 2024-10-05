@@ -429,3 +429,77 @@ ADD CONSTRAINT check_project_slug CHECK (slug ~ '^[a-z0-9-]+$');
 -- Add a check constraint to ensure organization slugs are lowercase and contain only allowed characters
 ALTER TABLE public.organizations
 ADD CONSTRAINT check_organization_slug CHECK (slug ~ '^[a-z0-9-]+$');
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create public buckets
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'organization_logos', 'organization_logos', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'organization_logos'
+);
+
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'user_avatars', 'user_avatars', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'user_avatars'
+);
+
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'user_avatars', 'user_avatars', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'user_avatars'
+);
+
+create policy "Anyone can update organization logos."
+on "storage"."objects"
+as permissive
+for update
+to public
+using ((bucket_id = 'organization_logos'::text))
+with check ((bucket_id = 'organization_logos'::text));
+
+
+create policy "Anyone can upload avatars."
+on "storage"."objects"
+as permissive
+for insert
+to public
+with check ((bucket_id = 'user_avatars'::text));
+
+
+create policy "Anyone can upload organization logos."
+on "storage"."objects"
+as permissive
+for insert
+to public
+with check ((bucket_id = 'organization_logos'::text));
+
+
+create policy "Organization logos are publicly accessible."
+on "storage"."objects"
+as permissive
+for select
+to public
+using ((bucket_id = 'organization_logos'::text));
+
+
+create policy "User avatars are publicly accessible."
+on "storage"."objects"
+as permissive
+for select
+to public
+using ((bucket_id = 'user_avatars'::text));
+
+
+create policy "Users can update their own avatar."
+on "storage"."objects"
+as permissive
+for update
+to public
+using (((bucket_id = 'user_avatars'::text) AND (auth.uid() = owner)))
+with check ((bucket_id = 'user_avatars'::text));

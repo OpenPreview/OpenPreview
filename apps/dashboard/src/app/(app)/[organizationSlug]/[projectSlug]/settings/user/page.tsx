@@ -23,7 +23,7 @@ async function getUserSettings() {
 
   const { data, error: profileError } = await supabase
     .from('users')
-    .select('name, email, avatar_url')
+    .select('name, email, avatar_url, avatar_updated_at')
     .eq('id', user.id)
     .single();
 
@@ -53,7 +53,7 @@ export default async function UserSettingsPage({
       <Separator />
       <UserAvatarUpload
         userId={userSettings.id}
-        currentAvatarUrl={userSettings.avatar_url}
+        currentAvatarUrl={`${userSettings.avatar_url}?t=${userSettings.avatar_updated_at}`}
         userName={userSettings.name}
       />
       <UserForm initialData={userSettings} />

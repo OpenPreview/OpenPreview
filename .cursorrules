@@ -71,3 +71,44 @@ Key Conventions:
   - Avoid for data fetching or state management
 
 Follow Next.js docs for Data Fetching, Rendering, and Routing
+
+
+add all the rls policies, some seem to be missing
+
+1. Owner:
+Can perform all operations on the organization they own
+Can create, read, update, and delete projects in their organization
+Can create, read, update, and delete comments in their organization's projects
+Can create, read, update, and delete allowed domains for their organization's projects
+Can create, read, update, and delete organization invitations
+Can read user information of all members in their organization
+2. Admin:
+Can read and update the organization
+Can create, read, update, and delete projects in their organization
+Can create, read, update, and delete comments in their organization's projects
+Can create, read, update, and delete allowed domains for their organization's projects
+Can create, read, update, and delete organization invitations
+Can read user information of all members in their organization
+Member:
+Can read the organization
+Can read projects in their organization
+Can create, read, update (own), and delete (own) comments in their organization's projects
+Can read allowed domains for their organization's projects
+Can read user information of all members in their organization
+Viewer:
+Can read the organization
+Can read projects in their organization
+Can read comments in their organization's projects
+Can read allowed domains for their organization's projects
+Can read user information of all members in their organization
+Authenticated users (not in the organization):
+Can create new organizations
+Cannot access any data of organizations they're not a member of
+Unauthenticated users:
+No access to any data
+These policies ensure that:
+Only organization members can access organization data
+Only admins and owners can make significant changes to the organization and its projects
+Members can contribute by adding comments, but can't make structural changes
+Viewers have read-only access to all organization data
+Users can always manage their own data (update their user profile, manage their own comments)

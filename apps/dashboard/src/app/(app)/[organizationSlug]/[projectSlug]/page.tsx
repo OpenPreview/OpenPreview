@@ -1,23 +1,23 @@
-import React from 'react';
-import Link from 'next/link';
+import { useUser } from '@openpreview/db/hooks/useUser/server';
+import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from '@openpreview/ui/components/card';
-import { Button } from '@openpreview/ui/components/button';
-import { ArrowLeft } from 'lucide-react';
-import { MessageSquare } from 'lucide-react';
+import { ArrowLeft, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
 
-export default function ProjectDashboard({
+export default async function ProjectDashboard({
   params,
 }: {
   params: { organizationSlug: string; projectSlug: string };
 }) {
+  const { user } = await useUser();
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Project Dashboard</h1>
         <Link href={`/${params.organizationSlug}`}>
           <Button variant="outline">
@@ -55,7 +55,9 @@ export default function ProjectDashboard({
         </Card>
       </div>
       <div className="flex justify-end">
-        <Link href={`/${params.organizationSlug}/${params.projectSlug}/comments`}>
+        <Link
+          href={`/${params.organizationSlug}/${params.projectSlug}/comments`}
+        >
           <Button>
             <MessageSquare className="mr-2 h-4 w-4" /> View Comments
           </Button>

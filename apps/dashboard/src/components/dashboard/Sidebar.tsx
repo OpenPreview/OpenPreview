@@ -1,11 +1,15 @@
 'use client';
 
+import { useFetchOrganizations } from '@openpreview/db/hooks/fetchOrganizations';
+import { useOrganization } from '@openpreview/db/hooks/useOrganization';
+import { useProject } from '@openpreview/db/hooks/useProject';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from '@openpreview/ui/components/sheet';
+import { Skeleton } from '@openpreview/ui/components/skeleton';
 import { Code, Home, Menu, MessageSquare, Plus, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,17 +17,6 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { CreateOrganizationDialog } from './CreateOrganizationDialog';
 import { OrganizationSelector } from './OrganizationSelector';
-
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url?: string;
-}
-
-interface SidebarProps {
-  organizations: Organization[];
-}
 
 const sidebarItems = [
   { href: '', icon: Home, label: 'Dashboard' },
@@ -33,12 +26,13 @@ const sidebarItems = [
 
 const sidebarFooter = [{ href: 'settings', icon: Settings, label: 'Settings' }];
 
-export function Sidebar({ organizations }: SidebarProps) {
+export function Sidebar() {
   const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
   const pathname = usePathname();
-  const pathParts = pathname.split('/').filter(Boolean);
-  const organizationSlug = pathParts[0];
-  const projectSlug = pathParts[1];
+  const { organization, isLoading: isLoadingOrganization } = useOrganization();
+  const { organizations, isLoading: isLoadingOrganizations } =
+    useFetchOrganizations();
+  const { project, isLoading: isLoadingProject } = useProject();
 
   const NavLink = ({
     href,
@@ -71,42 +65,61 @@ export function Sidebar({ organizations }: SidebarProps) {
         <h1 className="text-foreground text-xl font-bold">OpenPreview</h1>
       </div>
       <div className="px-4 py-2">
-        <OrganizationSelector organizations={organizations} />
+        {isLoadingOrganizations ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <OrganizationSelector organizations={organizations} />
+        )}
         <Button
           variant="outline"
           size="sm"
           className="mt-2 w-full"
           onClick={() => setIsCreateOrgOpen(true)}
+          disabled={isLoadingOrganizations}
         >
           <Plus className="mr-2 h-4 w-4" /> New Organization
         </Button>
       </div>
-      <nav className="mt-6 flex-1">
-        {organizationSlug && projectSlug && (
-          <>
-            {sidebarItems.map(item => (
-              <NavLink
-                key={item.href}
-                href={`/${organizationSlug}/${projectSlug}/${item.href}`}
-                icon={item.icon}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </>
-        )}
-      </nav>
-      <div className="border-border border-t p-4">
-        {sidebarFooter.map(item => (
-          <NavLink
-            key={item.href}
-            href={`/${organizationSlug}/${projectSlug}/${item.href}`}
-            icon={item.icon}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </div>
+      {project && (
+        <>
+          <nav className="mt-6 flex-1">
+            {isLoadingOrganization ? (
+              sidebarItems.map((item, index) => (
+                <Skeleton key={index} className="mx-4 mb-2 h-10" />
+              ))
+            ) : organization ? (
+              <>
+                {sidebarItems.map(item => (
+                  <NavLink
+                    key={item.href}
+                    href={`/${organization.slug}/${project.slug}/${item.href}`}
+                    icon={item.icon}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </>
+            ) : null}
+          </nav>
+          <div className="border-border border-t p-4">
+            {isLoadingOrganization
+              ? sidebarFooter.map((item, index) => (
+                  <Skeleton key={index} className="mb-2 h-10" />
+                ))
+              : organization
+                ? sidebarFooter.map(item => (
+                    <NavLink
+                      key={item.href}
+                      href={`/${organization.slug}/${project.slug}/${item.href}`}
+                      icon={item.icon}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))
+                : null}
+          </div>
+        </>
+      )}
     </div>
   );
 

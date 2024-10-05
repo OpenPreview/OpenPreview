@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import {
@@ -16,6 +17,7 @@ interface Organization {
 }
 
 export default async function DashboardPage() {
+  const { user } = await useUser();
   const supabase = createClient();
 
   const { data: organizations, error } = await supabase

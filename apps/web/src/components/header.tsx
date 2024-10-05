@@ -1,5 +1,6 @@
 'use client';
 
+import { useUser } from '@/hooks/useUser';
 import { Button } from '@openpreview/ui/components/button';
 import {
   DropdownMenu,
@@ -7,7 +8,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@openpreview/ui/components/dropdown-menu';
-import { User } from '@supabase/supabase-js';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUpRight, ChevronDown, Github, Menu } from 'lucide-react';
 import Image from 'next/image';
@@ -69,7 +69,8 @@ const headerData: headerType = {
   ],
 };
 
-export default function Header({ user }: { user: User | null }) {
+export default function Header() {
+  const { user, isLoading } = useUser();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileExtraOpen, setIsMobileExtraOpen] = useState(false);
 
@@ -127,7 +128,7 @@ export default function Header({ user }: { user: User | null }) {
 
           {/* Desktop Buttons */}
           <div className="hidden items-center space-x-2 md:flex">
-            {user ? (
+            {user && !isLoading ? (
               <Button className="text-base font-medium" asChild>
                 <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard`}>
                   Enter Dashboard

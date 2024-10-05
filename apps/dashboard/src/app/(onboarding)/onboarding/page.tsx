@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSupabaseBrowser } from '@openpreview/db/client';
+import { useUser } from '@openpreview/db/hooks/useUser/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -142,6 +143,7 @@ function LoadingSkeleton() {
 }
 
 export default function OnboardingPage() {
+  const { user } = useUser();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [organizationSlug, setOrganizationSlug] = useState('');
@@ -156,6 +158,7 @@ export default function OnboardingPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+        console.log('user', user);
         if (user) {
           const { data: organizations, error } = await supabase
             .from('organization_members')
@@ -194,43 +197,28 @@ export default function OnboardingPage() {
   async function onOrganizationSubmit(data: OrganizationFormValues) {
     setIsLoading(true);
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError)
-        throw new Error('Failed to get user: ' + userError.message);
       if (!user) throw new Error('User not found');
 
       if (!user.id) throw new Error('User is not authenticated');
 
-      const { data: organization, error: orgError } = await supabase
+      const { error: orgError } = await supabase
         .from('organizations')
-        .insert({ name: data.organizationName })
-        .select()
-        .single();
+        .insert({ name: data.organizationName });
 
       if (orgError) {
         if (orgError.message.includes('row-level security policy')) {
           throw new Error(
-            'Permission denied: Unable to create organization. Please check your authentication status or contact support.',
+            'Permission denied: Unable to create organization. Please check your authentication status or contact support. Error details: ' +
+              orgError.message,
           );
         }
         throw new Error('Failed to create organization: ' + orgError.message);
       }
-
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: organization.id,
-          user_id: user.id,
-          role: 'owner',
-        });
-
-      if (memberError)
-        throw new Error(
-          'Failed to add member to organization: ' + memberError.message,
-        );
+      const { data: organization } = await supabase
+        .from('organizations')
+        .select('id, slug')
+        .eq('name', data.organizationName)
+        .single();
 
       setOrganizationSlug(organization.slug);
       setStep(2);

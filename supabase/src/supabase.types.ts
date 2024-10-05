@@ -134,8 +134,8 @@ export type Database = {
           email: string
           expires_at: string | null
           id: string
-          invited_by: string
-          organization_id: string
+          invited_by: string | null
+          organization_id: string | null
           role: string
         }
         Insert: {
@@ -144,8 +144,8 @@ export type Database = {
           email: string
           expires_at?: string | null
           id?: string
-          invited_by: string
-          organization_id: string
+          invited_by?: string | null
+          organization_id?: string | null
           role: string
         }
         Update: {
@@ -154,8 +154,8 @@ export type Database = {
           email?: string
           expires_at?: string | null
           id?: string
-          invited_by?: string
-          organization_id?: string
+          invited_by?: string | null
+          organization_id?: string | null
           role?: string
         }
         Relationships: [
@@ -221,25 +221,28 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          logo_updated_at: string | null
           logo_url: string | null
           name: string
-          slug: string | null
+          slug: string
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
+          logo_updated_at?: string | null
           logo_url?: string | null
           name: string
-          slug?: string | null
+          slug?: string
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
+          logo_updated_at?: string | null
           logo_url?: string | null
           name?: string
-          slug?: string | null
+          slug?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -292,8 +295,8 @@ export type Database = {
           description: string | null
           id: string
           name: string
-          organization_id: string | null
-          slug: string | null
+          organization_id: string
+          slug: string
           updated_at: string | null
         }
         Insert: {
@@ -301,8 +304,8 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
-          organization_id?: string | null
-          slug?: string | null
+          organization_id: string
+          slug?: string
           updated_at?: string | null
         }
         Update: {
@@ -310,8 +313,8 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
-          organization_id?: string | null
-          slug?: string | null
+          organization_id?: string
+          slug?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -326,6 +329,7 @@ export type Database = {
       }
       users: {
         Row: {
+          avatar_updated_at: string | null
           avatar_url: string | null
           created_at: string | null
           email: string
@@ -335,15 +339,17 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          avatar_updated_at?: string | null
           avatar_url?: string | null
           created_at?: string | null
           email: string
-          id?: string
+          id: string
           name?: string | null
           onboarding_completed?: boolean | null
           updated_at?: string | null
         }
         Update: {
+          avatar_updated_at?: string | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string
@@ -352,7 +358,15 @@ export type Database = {
           onboarding_completed?: boolean | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -368,6 +382,29 @@ export type Database = {
           project_id: string
         }
         Returns: Json
+      }
+      has_organization_role: {
+        Args: {
+          _user_id: string
+          _organization_id: string
+          _roles: string[]
+        }
+        Returns: boolean
+      }
+      has_project_role: {
+        Args: {
+          _user_id: string
+          _project_id: string
+          _roles: string[]
+        }
+        Returns: boolean
+      }
+      is_member_of: {
+        Args: {
+          _user_id: string
+          _organization_id: string
+        }
+        Returns: boolean
       }
     }
     Enums: {

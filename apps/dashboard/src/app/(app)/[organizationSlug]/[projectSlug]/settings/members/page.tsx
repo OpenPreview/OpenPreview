@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
@@ -73,6 +74,7 @@ export default async function OrganizationMembersPage({
 }: {
   params: { organizationSlug: string; projectSlug: string };
 }) {
+  const { user } = await useUser();
   const members = await getOrganizationMembers(params.organizationSlug);
   const pendingInvites = await getPendingInvites(params.organizationSlug);
   const currentUserId = await getCurrentUserId();

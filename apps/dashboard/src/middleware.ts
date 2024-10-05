@@ -1,8 +1,9 @@
+
 import { updateSession } from "@openpreview/db/middleware";
 import { type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  return await updateSession(request, 'dashboard');
 }
 
 export const config = {

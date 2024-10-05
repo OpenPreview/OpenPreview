@@ -20,24 +20,6 @@ export default async function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (data?.onboarding_completed) {
-      redirect('/');
-    } else {
-      redirect('/onboarding');
-    }
-  }
 
   return (
     <body

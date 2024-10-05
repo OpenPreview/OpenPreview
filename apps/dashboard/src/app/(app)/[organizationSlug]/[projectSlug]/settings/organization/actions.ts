@@ -21,7 +21,7 @@ export async function updateOrganizationSettings(
     throw new Error('Failed to update organization settings')
   }
 
-  revalidatePath(`/${organizationSlug}/${projectSlug}/settings/organization`)
+  revalidatePath(`/[organizationSlug]/[projectSlug]/settings/organization`, 'layout')
 }
 
 export async function updateOrganizationLogo(formData: FormData) {
@@ -59,7 +59,7 @@ export async function updateOrganizationLogo(formData: FormData) {
 
     if (updateError) throw updateError
 
-    revalidatePath(`/${organizationSlug}/${projectSlug}/settings/organization`)
+    revalidatePath(`/[organizationSlug]/[projectSlug]/settings/organization`, 'layout')
 
     return publicUrl
   } catch (error) {

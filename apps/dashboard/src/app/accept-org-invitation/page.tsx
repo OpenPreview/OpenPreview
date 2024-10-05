@@ -1,6 +1,7 @@
 'use client';
 
 import { useSupabaseBrowser } from '@openpreview/db/client';
+import { useUser } from '@openpreview/db/hooks/useUser/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -96,6 +97,7 @@ function AcceptOrgInvitationContent() {
 }
 
 export default function AcceptOrgInvitation() {
+  const { user } = useUser();
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <AcceptOrgInvitationContent />

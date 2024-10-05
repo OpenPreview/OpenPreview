@@ -1,3 +1,4 @@
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Separator } from '@openpreview/ui/components/separator';
 import { Metadata } from 'next';
@@ -29,6 +30,7 @@ export default async function ProjectSettingsPage({
 }: {
   params: { projectSlug: string };
 }) {
+  const { user } = await useUser();
   const projectSettings = await getProjectSettings(params.projectSlug);
 
   return (
