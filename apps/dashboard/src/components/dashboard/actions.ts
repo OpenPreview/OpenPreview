@@ -87,7 +87,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
       type: 'invite',
       email: email,
       options: {
-        redirectTo: `${baseUrl}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}`,
+        redirectTo: `${baseUrl}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}&email=${email}`,
       },
     });
 

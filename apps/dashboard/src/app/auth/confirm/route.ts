@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
   const type = searchParams.get('type') as EmailOtpType | null
+  const email = searchParams.get('email')
   const next = searchParams.get('next') || '/'
 
   // Create redirect link without the secret token
@@ -15,13 +16,14 @@ export async function GET(request: NextRequest) {
   redirectTo.pathname = next
   redirectTo.searchParams.delete('token')
   redirectTo.searchParams.delete('type')
-
+  redirectTo.searchParams.delete('email')
   if (token && type) {
     const supabase = createClient()
 
     const { error } = await supabase.auth.verifyOtp({
       type,
-      token_hash: token,
+      token: token,
+      email,
     })
     if (!error) {
       redirectTo.searchParams.delete('next')
