@@ -1,4 +1,3 @@
-import { useUser } from '@openpreview/db/hooks/useUser/server';
 import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import {
@@ -9,6 +8,7 @@ import {
 } from '@openpreview/ui/components/card';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 interface Project {
   id: string;
@@ -21,8 +21,16 @@ export default async function OrganizationPage({
 }: {
   params: { organizationSlug: string };
 }) {
-  const { user } = await useUser();
   const supabase = createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (!user || userError) {
+    return redirect('/login');
+  }
 
   const { data: organization, error: orgError } = await supabase
     .from('organizations')

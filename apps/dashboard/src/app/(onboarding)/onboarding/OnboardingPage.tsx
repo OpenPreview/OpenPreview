@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSupabaseBrowser } from '@openpreview/db/client';
+import { useUser } from '@openpreview/db/hooks/useUser/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -25,7 +26,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { fetchPendingInvites } from 'src/components/dashboard/actions';
-import { InviteList, PendingInvite } from 'src/components/dashboard/InvitesList';
+import {
+  InviteList,
+  PendingInvite,
+} from 'src/components/dashboard/InvitesList';
 import * as z from 'zod';
 
 const organizationSchema = z.object({
@@ -148,10 +152,13 @@ interface OboardingPageProps {
   user: User;
 }
 
-export default function OnboardingPage({user}: OboardingPageProps) {
+export default function OnboardingPage() {
+  const { user } = useUser();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState<PendingInvite[] | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[] | null>(
+    null,
+  );
   const [organizationSlug, setOrganizationSlug] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const router = useRouter();
@@ -161,39 +168,39 @@ export default function OnboardingPage({user}: OboardingPageProps) {
   useEffect(() => {
     async function checkExistingOrganization() {
       try {
-          const { pendingInvites, error: inviteError } = await fetchPendingInvites()
-            if (inviteError) {
-                throw new Error(inviteError);
-            }
-            if (pendingInvites && pendingInvites.length > 0) {
-              setPendingInvites(pendingInvites);
-              return;
-            }
-              
-          const { data: organizations, error } = await supabase
-            .from('organization_members')
-            .select('organization_id')
-            .eq('user_id', user.id)
-            .limit(1);
+        const { pendingInvites, error: inviteError } =
+          await fetchPendingInvites();
+        if (inviteError) {
+          throw new Error(inviteError);
+        }
+        if (pendingInvites && pendingInvites.length > 0) {
+          setPendingInvites(pendingInvites);
+          return;
+        }
 
-          if (error) {
-            console.error('Error checking existing organization:', error);
-            return;
-          }
+        const { data: organizations, error } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .limit(1);
 
-          if (organizations && organizations.length > 0) {
-            // User already has an organization, skip to project creation
-            setStep(2);
-            const { data: org } = await supabase
-              .from('organizations')
-              .select('slug')
-              .eq('id', organizations[0].organization_id)
-              .single();
-            if (org) {
-              setOrganizationSlug(org.slug);
-            }
+        if (error) {
+          console.error('Error checking existing organization:', error);
+          return;
+        }
+
+        if (organizations && organizations.length > 0) {
+          // User already has an organization, skip to project creation
+          setStep(2);
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('slug')
+            .eq('id', organizations[0].organization_id)
+            .single();
+          if (org) {
+            setOrganizationSlug(org.slug);
           }
-      
+        }
       } catch (error) {
         console.error('Error during initial loading:', error);
       } finally {
@@ -207,7 +214,6 @@ export default function OnboardingPage({user}: OboardingPageProps) {
   async function onOrganizationSubmit(data: OrganizationFormValues) {
     setIsLoading(true);
     try {
-
       const { data: organization, error: orgError } = await supabase
         .from('organizations')
         .insert({ name: data.organizationName })
@@ -256,7 +262,6 @@ export default function OnboardingPage({user}: OboardingPageProps) {
   async function onProjectSubmit(data: ProjectFormValues) {
     setIsLoading(true);
     try {
-
       const { data: organization, error: orgError } = await supabase
         .from('organizations')
         .select('id')

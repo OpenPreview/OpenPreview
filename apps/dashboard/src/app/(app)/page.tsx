@@ -1,4 +1,5 @@
-import { useUser } from '@openpreview/db/hooks/useUser/server';
+import { fetchPendingInvites } from '@/components/dashboard/actions';
+import { PendingInvitesRealtime } from '@/components/dashboard/PendingInvitesRealtime';
 import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import {
@@ -9,6 +10,7 @@ import {
 } from '@openpreview/ui/components/card';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 interface Organization {
   id: string;
@@ -17,8 +19,15 @@ interface Organization {
 }
 
 export default async function DashboardPage() {
-  const { user } = await useUser();
   const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
 
   const { data: organizations, error } = await supabase
     .from('organizations')
@@ -30,8 +39,15 @@ export default async function DashboardPage() {
     return <div>Error loading organizations</div>;
   }
 
+  const { pendingInvites, error: inviteError } = await fetchPendingInvites();
+
+  if (inviteError) {
+    console.error('Error fetching pending invites:', inviteError);
+    return <div>Error loading pending invites</div>;
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Your Organizations</h1>
         <Button>
@@ -52,6 +68,7 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+      <PendingInvitesRealtime user={user} initialInvites={pendingInvites} />
     </div>
   );
 }
