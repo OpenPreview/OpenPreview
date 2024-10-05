@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const next = '/account'
 
   // Create redirect link without the secret token
-  const redirectTo = request.nextUrl.clone()
+  const redirectTo = new URL(request.url)
   redirectTo.pathname = next
   redirectTo.searchParams.delete('token')
   redirectTo.searchParams.delete('type')
@@ -25,11 +25,11 @@ export async function GET(request: NextRequest) {
     })
     if (!error) {
       redirectTo.searchParams.delete('next')
-      return NextResponse.redirect(redirectTo)
+      return NextResponse.redirect(redirectTo.toString())
     }
   }
 
   // return the user to an error page with some instructions
   redirectTo.pathname = '/error'
-  return NextResponse.redirect(redirectTo)
+  return NextResponse.redirect(redirectTo.toString())
 }
