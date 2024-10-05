@@ -8,6 +8,8 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Resend } from 'resend';
+import { Tables } from '@openpreview/supabase';
+import { redirect } from 'next/navigation';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -61,6 +63,8 @@ export async function inviteMember(organizationSlug: string, email: string, role
       }
     } else {
       // Create a new invitation
+      const invite = await sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug);
+      if (invite.success) {
       const { error: newInviteError } = await supabase
         .from('organization_invitations')
         .insert({
@@ -69,10 +73,15 @@ export async function inviteMember(organizationSlug: string, email: string, role
           role,
           invited_by: (await supabase.auth.getUser()).data.user?.id,
         });
+     
+        
 
       if (newInviteError) {
         return { success: false, error: newInviteError.message };
       }
+      revalidatePath(`/[organizationSlug]/[projectSlug]/settings/members`, 'page');
+      return { success: true, error: null };
+    }
     }
 
     // Send the invitation email
@@ -89,7 +98,7 @@ const getLocationFromIp = async (ip: string) => {
   return `${data.city}, ${data.country_name}`;
 }
 
-async function sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug) {
+async function sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug, newInvite = false) {
   // Generate the invite link using Supabase
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
     type: 'invite',
@@ -123,7 +132,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
 
   // Send the invitation email using Resend
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-  console.log(inviteData.properties);
+
   await resend.emails.send({
     from: 'OpenPreview <noreply@investa.so>',
     to: email,
@@ -141,8 +150,9 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
       role: role,
     }),
   });
-
-  revalidatePath(`/[organizationSlug]/[projectSlug]/settings/members`, 'page');
+  if (!newInvite) {
+    revalidatePath(`/[organizationSlug]/[projectSlug]/settings/members`, 'page');
+  } 
   return { success: true, error: null };
 }
 
@@ -166,10 +176,4 @@ export async function updateMemberRole(formData: FormData) {
     console.error('Error updating member role:', error);
     return { success: false, error: 'Failed to update member role' };
   }
-}
-
-export async function handleSignOut() {
-  const supabase = createClient();
-  await supabase.auth.signOut();
-  redirect('/');
 }

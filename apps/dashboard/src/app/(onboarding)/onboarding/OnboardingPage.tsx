@@ -1,10 +1,7 @@
-import { createClient } from "@openpreview/db/server";
-import OnboardingPage from "./OnboardingPage";
-import { redirect } from "next/navigation";
+'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSupabaseBrowser } from '@openpreview/db/client';
-import { useUser } from '@openpreview/db/hooks/useUser/client';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -23,17 +20,19 @@ import {
 import { Input } from '@openpreview/ui/components/input';
 import { Skeleton } from '@openpreview/ui/components/skeleton';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
+import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { fetchPendingInvites } from 'src/components/dashboard/actions';
+import { InviteList, PendingInvite } from 'src/components/dashboard/InvitesList';
 import * as z from 'zod';
 
-export default async function Onboarding() {
-  const supabase = createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+const organizationSchema = z.object({
+  organizationName: z
+    .string()
+    .min(2, { message: 'Organization name must be at least 2 characters' }),
+});
 
 const projectSchema = z.object({
   projectName: z
@@ -145,10 +144,14 @@ function LoadingSkeleton() {
   );
 }
 
-export default function OnboardingPage() {
-  const { user } = useUser();
+interface OboardingPageProps {
+  user: User;
+}
+
+export default function OnboardingPage({user}: OboardingPageProps) {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[] | null>(null);
   const [organizationSlug, setOrganizationSlug] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const router = useRouter();
@@ -158,11 +161,15 @@ export default function OnboardingPage() {
   useEffect(() => {
     async function checkExistingOrganization() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        console.log('user', user);
-        if (user) {
+          const { pendingInvites, error: inviteError } = await fetchPendingInvites()
+            if (inviteError) {
+                throw new Error(inviteError);
+            }
+            if (pendingInvites && pendingInvites.length > 0) {
+              setPendingInvites(pendingInvites);
+              return;
+            }
+              
           const { data: organizations, error } = await supabase
             .from('organization_members')
             .select('organization_id')
@@ -186,7 +193,7 @@ export default function OnboardingPage() {
               setOrganizationSlug(org.slug);
             }
           }
-        }
+      
       } catch (error) {
         console.error('Error during initial loading:', error);
       } finally {
@@ -200,28 +207,34 @@ export default function OnboardingPage() {
   async function onOrganizationSubmit(data: OrganizationFormValues) {
     setIsLoading(true);
     try {
-      if (!user) throw new Error('User not found');
 
-      if (!user.id) throw new Error('User is not authenticated');
-
-      const { error: orgError } = await supabase
+      const { data: organization, error: orgError } = await supabase
         .from('organizations')
-        .insert({ name: data.organizationName });
+        .insert({ name: data.organizationName })
+        .select()
+        .single();
 
       if (orgError) {
         if (orgError.message.includes('row-level security policy')) {
           throw new Error(
-            'Permission denied: Unable to create organization. Please check your authentication status or contact support. Error details: ' +
-              orgError.message,
+            'Permission denied: Unable to create organization. Please check your authentication status or contact support.',
           );
         }
         throw new Error('Failed to create organization: ' + orgError.message);
       }
-      const { data: organization } = await supabase
-        .from('organizations')
-        .select('id, slug')
-        .eq('name', data.organizationName)
-        .single();
+
+      const { error: memberError } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: organization.id,
+          user_id: user.id,
+          role: 'owner',
+        });
+
+      if (memberError)
+        throw new Error(
+          'Failed to add member to organization: ' + memberError.message,
+        );
 
       setOrganizationSlug(organization.slug);
       setStep(2);
@@ -243,13 +256,6 @@ export default function OnboardingPage() {
   async function onProjectSubmit(data: ProjectFormValues) {
     setIsLoading(true);
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError)
-        throw new Error('Failed to get user: ' + userError.message);
-      if (!user) throw new Error('User not found');
 
       const { data: organization, error: orgError } = await supabase
         .from('organizations')
@@ -317,6 +323,34 @@ export default function OnboardingPage() {
   }
 
   return (
-    <OnboardingPage user={user} />
-  )
+    <div className="container mx-auto max-w-md py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">
+            Welcome to OpenPreview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-gray-600">
+            OpenPreview is an open-source toolkit for streamlined development,
+            collaborative comments, and efficient project management—anytime,
+            anywhere.
+          </p>
+          {isInitialLoading ? (
+            <LoadingSkeleton />
+          ) : step === 1 ? (
+            <OrganizationForm
+              onSubmit={onOrganizationSubmit}
+              isLoading={isLoading}
+            />
+          ) : (
+            <ProjectForm onSubmit={onProjectSubmit} isLoading={isLoading} />
+          )}
+          {step === 1 && pendingInvites && pendingInvites.length > 0 && (
+            <InviteList user={user} pendingInvites={pendingInvites} />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
