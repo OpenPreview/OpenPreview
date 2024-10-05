@@ -8,10 +8,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
   const type = searchParams.get('type') as EmailOtpType | null
-  const next = '/account'
+  const next = searchParams.get('next') || '/'
 
   // Create redirect link without the secret token
-  const redirectTo = new URL(request.url)
+  const redirectTo = new URL(`${process.env.NEXT_PUBLIC_APP_URL}`)
   redirectTo.pathname = next
   redirectTo.searchParams.delete('token')
   redirectTo.searchParams.delete('type')
