@@ -28,7 +28,7 @@ function AcceptOrgInvitationContent() {
           return;
         }
 
-        const result = await acceptInvite({organizationSlug: orgSlug});
+        const result = await acceptInvite({ organizationSlug: orgSlug });
         if (result.success) {
           router.push(`/${orgSlug}`);
         } else {
