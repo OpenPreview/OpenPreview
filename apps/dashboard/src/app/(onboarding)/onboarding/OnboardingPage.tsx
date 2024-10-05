@@ -209,11 +209,9 @@ export default function OnboardingPage() {
   async function onOrganizationSubmit(data: OrganizationFormValues) {
     setIsLoading(true);
     try {
-      const { data: organization, error: orgError } = await supabase
+      const { error: orgError } = await supabase
         .from('organizations')
-        .insert({ name: data.organizationName })
-        .select()
-        .single();
+        .insert({ name: data.organizationName });
 
       if (orgError) {
         if (orgError.message.includes('row-level security policy')) {
@@ -224,17 +222,15 @@ export default function OnboardingPage() {
         throw new Error('Failed to create organization: ' + orgError.message);
       }
 
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: organization.id,
-          user_id: user.id,
-          role: 'owner',
-        });
+      const { data: organization, error: orgFetchError } = await supabase
+        .from('organizations')
+        .select('id, slug')
+        .eq('name', data.organizationName)
+        .single();
 
-      if (memberError)
+      if (orgFetchError)
         throw new Error(
-          'Failed to add member to organization: ' + memberError.message,
+          'Failed to fetch organization: ' + orgFetchError.message,
         );
 
       setOrganizationSlug(organization.slug);
