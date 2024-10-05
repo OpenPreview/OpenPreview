@@ -21,7 +21,6 @@ import {
 import { Input } from '@openpreview/ui/components/input';
 import { Skeleton } from '@openpreview/ui/components/skeleton';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
-import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -148,12 +147,8 @@ function LoadingSkeleton() {
   );
 }
 
-interface OboardingPageProps {
-  user: User;
-}
-
 export default function OnboardingPage() {
-  const { user } = useUser();
+  const { user, authUser } = useUser();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[] | null>(
@@ -352,7 +347,7 @@ export default function OnboardingPage() {
             <ProjectForm onSubmit={onProjectSubmit} isLoading={isLoading} />
           )}
           {step === 1 && pendingInvites && pendingInvites.length > 0 && (
-            <InviteList user={user} pendingInvites={pendingInvites} />
+            <InviteList user={authUser} pendingInvites={pendingInvites} />
           )}
         </CardContent>
       </Card>

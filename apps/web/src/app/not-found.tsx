@@ -25,7 +25,7 @@ export default async function NotFound() {
       className={`${inter.variable} font-inter bg-gray-50 tracking-tight text-gray-900 antialiased`}
     >
       <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
-        <Header user={user} />
+        <Header />
         <div className="flex flex-grow items-center justify-center">
           <main className="mx-auto w-full max-w-md px-4">
             <div className="text-center">

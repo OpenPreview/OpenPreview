@@ -2,11 +2,13 @@
 
 import { useSupabaseBrowser } from '@openpreview/db/client';
 import { Tables } from '@openpreview/supabase';
+import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export function useUser() {
   const [user, setUser] = useState<Tables<'users'> | null>(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const supabase = useSupabaseBrowser();
@@ -23,7 +25,7 @@ export function useUser() {
           router.push('/login');
           return;
         }
-
+        setAuthUser(authUser);
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
@@ -44,5 +46,5 @@ export function useUser() {
     fetchUser();
   }, [supabase, router]);
 
-  return { user, isLoading };
+  return { user, authUser, isLoading };
 }
