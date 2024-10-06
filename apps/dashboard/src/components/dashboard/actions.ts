@@ -48,7 +48,7 @@ export async function inviteMember(organizationSlug: string, email: string, role
       .single();
 
     // Send invitation email
-    await sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug, existingUser !== null);
+    await sendInvitationEmail(organization, email, role, organizationSlug, existingUser !== null);
 
     // Create or update the invitation in the database
     const { error: inviteError } = await supabase
@@ -75,34 +75,35 @@ export async function inviteMember(organizationSlug: string, email: string, role
   }
 }
 
-async function sendInvitationEmail(adminClient, supabase, organization, email, role, organizationSlug, isExistingUser) {
+async function sendInvitationEmail(organization, email, role, organizationSlug, isExistingUser) {
+  const supabase = createClient()
+  const adminClient = createAdminClient()
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
   const inviter = (await supabase.auth.getUser()).data.user;
 
-  let inviteLink;
-  if (isExistingUser) {
-    inviteLink = `${baseUrl}/accept-org-invitation?org=${organizationSlug}`;
-  } else {
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
-      type: 'invite',
-      email: email,
-      options: {
-        redirectTo: `${baseUrl}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}&email=${email}`,
-      },
-    });
+ 
+  const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
+    type: isExistingUser ? 'magiclink' : 'invite',
+    email: email,
+    options: {
+      redirectTo: `${baseUrl}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}&email=${email}`,
+    },
+  });
 
     if (inviteError) {
       throw inviteError;
     }
 
-    inviteLink = inviteData.properties.action_link;
-  }
+    const token_hash = inviteData.properties.hashed_token;
+    const inviteLink = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/accept-org-invitation&org=${organizationSlug}&email=${email}`);
+    inviteLink.searchParams.append('token_hash', token_hash)
+    inviteLink.searchParams.append('type',isExistingUser ? 'magiclink':'invite')
 
   // Get IP from request headers
   const headersList = headers();
   const ip = headersList.get('x-forwarded-for') || 'Unknown';
   const location = await getLocationFromIp(ip);
-
+    
   await resend.emails.send({
     from: 'OpenPreview <noreply@investa.so>',
     to: email,
@@ -114,7 +115,7 @@ async function sendInvitationEmail(adminClient, supabase, organization, email, r
       invitedByEmail: inviter?.email ?? email,
       teamName: organization.name,
       teamImage: organization.logo_url ?? `${baseUrl}/static/avatar-placeholder.png`,
-      inviteLink: inviteLink,
+      inviteLink: inviteLink.toString(),
       inviteFromIp: ip,
       inviteFromLocation: location,
       role: role,

@@ -30,8 +30,6 @@ export function OrganizationSelector({
     router.push(`/${slug}`);
   };
 
-  console.log(organizations);
-
   return (
     <div className="mb-4">
       <label

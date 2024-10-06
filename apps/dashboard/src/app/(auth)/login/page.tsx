@@ -34,7 +34,7 @@ import {
 } from '@openpreview/ui/components/tabs';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -156,6 +156,7 @@ export default function LoginPage() {
   const [otpEmail, setOtpEmail] = useState('');
   const supabase = useSupabaseBrowser();
   const { toast } = useToast();
+  const params = useSearchParams();
   const router = useRouter();
 
   const passwordForm = useForm<LoginFormValues>({
@@ -175,7 +176,11 @@ export default function LoginPage() {
         title: 'Login successful',
         description: 'You have been successfully logged in.',
       });
-      router.push('/'); // Redirect to dashboard after successful login
+      if (params.get('next')) {
+        router.push(params.get('next') as string);
+      } else {
+        router.push('/'); // Redirect to dashboard after successful login
+      }
     } catch (error) {
       if (error instanceof Error) {
         toast({

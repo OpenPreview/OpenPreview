@@ -45,7 +45,9 @@ export async function updateSession(request: NextRequest, app: 'web' | 'dashboar
     ) {
       // no user, potentially respond by redirecting the user to the login page
       const url = request.nextUrl.clone()
+      const next = request.nextUrl.pathname
       url.pathname = '/login'
+      url.searchParams.set('next', next)
       return NextResponse.redirect(url)
     } else if (user) {
       const url = request.nextUrl.clone()
@@ -55,7 +57,7 @@ export async function updateSession(request: NextRequest, app: 'web' | 'dashboar
         url.pathname = '/'
         return NextResponse.redirect(url)
       }
-      if (!userObj?.onboarding_completed && request.nextUrl.pathname !== '/onboarding') {
+      if (!userObj?.onboarding_completed && request.nextUrl.pathname !== '/onboarding' && request.nextUrl.pathname !== '/accept-org-invitation') {
         url.pathname = '/onboarding'
         return NextResponse.redirect(url)
       }
