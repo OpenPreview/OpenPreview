@@ -35,7 +35,7 @@ import {
 } from '@openpreview/ui/components/tabs';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -148,7 +148,7 @@ function OtpVerifyForm({
   );
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>(
     'password',
@@ -265,6 +265,101 @@ export default function LoginPage() {
       }
     }
   }
+
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
+        <CardDescription>Choose your preferred login method</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs
+          value={loginMethod}
+          onValueChange={value => setLoginMethod(value as 'password' | 'otp')}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="otp">OTP</TabsTrigger>
+          </TabsList>
+          <TabsContent value="password">
+            <Form {...passwordForm}>
+              <form
+                onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+                className="space-y-4"
+              >
+                <FormField
+                  control={passwordForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="you@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={passwordForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                        <FormLabel className="w-full">Password</FormLabel>
+                      </div>
+                      <FormControl>
+                        <PasswordInput
+                          type="password"
+                          placeholder="Enter password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div>
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? 'Signing in...' : 'Sign in'}
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+          <TabsContent value="otp">
+            {!otpRequested ? (
+              <OtpRequestForm
+                onOtpRequest={onOtpRequest}
+                isLoading={isLoading}
+              />
+            ) : (
+              <OtpVerifyForm onOtpVerify={onOtpVerify} otpEmail={otpEmail} />
+            )}
+          </TabsContent>
+        </Tabs>
+        <div className="mt-4 text-sm">
+          Don't have an account?{' '}
+          <Link
+            href="/register"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            Sign up
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function LoginPage() {
   const loadingSkeleton = (
     <div className="flex h-full w-full items-center justify-center">
       <Skeleton className="w-full max-w-md" />
@@ -273,95 +368,7 @@ export default function LoginPage() {
 
   return (
     <Suspense fallback={loadingSkeleton}>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
-          <CardDescription>Choose your preferred login method</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={loginMethod}
-            onValueChange={value => setLoginMethod(value as 'password' | 'otp')}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="password">Password</TabsTrigger>
-              <TabsTrigger value="otp">OTP</TabsTrigger>
-            </TabsList>
-            <TabsContent value="password">
-              <Form {...passwordForm}>
-                <form
-                  onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
-                  className="space-y-4"
-                >
-                  <FormField
-                    control={passwordForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="you@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={passwordForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel className="w-full">Password</FormLabel>
-                        </div>
-                        <FormControl>
-                          <PasswordInput
-                            type="password"
-                            placeholder="Enter password"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div>
-                    <Link
-                      href="/forgot-password"
-                      className="text-sm font-medium text-blue-600 hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Signing in...' : 'Sign in'}
-                  </Button>
-                </form>
-              </Form>
-            </TabsContent>
-            <TabsContent value="otp">
-              {!otpRequested ? (
-                <OtpRequestForm
-                  onOtpRequest={onOtpRequest}
-                  isLoading={isLoading}
-                />
-              ) : (
-                <OtpVerifyForm onOtpVerify={onOtpVerify} otpEmail={otpEmail} />
-              )}
-            </TabsContent>
-          </Tabs>
-          <div className="mt-4 text-sm">
-            Don't have an account?{' '}
-            <Link
-              href="/register"
-              className="font-medium text-blue-600 hover:underline"
-            >
-              Sign up
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <LoginPageContent />
     </Suspense>
   );
 }
