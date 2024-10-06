@@ -35,7 +35,7 @@ import {
 } from '@openpreview/ui/components/tabs';
 import { useToast } from '@openpreview/ui/hooks/use-toast';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
