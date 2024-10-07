@@ -1552,8 +1552,7 @@ try {
       // Add this new method
       loadTestData: async function () {
       
-        const res = await fetch('http://localhost:3003');
-        console.log(res);
+        
         this.comments = [
           {
             id: '1',
