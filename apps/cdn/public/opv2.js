@@ -17,8 +17,11 @@ try {
       addCommentPopover: null,
       allowedDomains: ['https://openpreview.dev'], // Add allowed domains
       //#endregion
-      isOriginAllowed: function (origin) {
-        return this.allowedDomains.includes(origin);
+      isPreviewDomain: function (origin) {
+        const domainIsAllowed = this.allowedDomains.includes(origin);
+        const allowedDomain = this.allowedDomains.find(domain => origin.includes(domain));
+        const isPreviewDomain = origin.includes(allowedDomain);
+        return domainIsAllowed && isPreviewDomain;
       },
       //#region Init Func
       init: function (config) {
@@ -27,9 +30,9 @@ try {
 
         const weborigin = window.location.origin;
         console.log('weborigin', weborigin);
-        const isOriginAllowed = this.isOriginAllowed(weborigin);
+        const isAllowed = this.isPreviewDomain(weborigin);
 
-        if (!!isOriginAllowed) {
+        if (!isAllowed) {
           console.log('Origin not allowed');
           return;
         }
@@ -1544,8 +1547,8 @@ try {
       // Add this new method
       loadTestData: async function () {
         console.log('Loading test data');
-        const url = new URL(window.location.href);
-        if (!this.allowedDomains.includes(url.hostname)) {
+        const weborigin = window.location.origin;
+        if (!this.isPreviewDomain(weborigin)) {
           console.warn('Domain not allowed to load test data:', url.hostname);
           return;
         }
