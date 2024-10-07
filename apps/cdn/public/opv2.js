@@ -17,8 +17,11 @@ try {
       addCommentPopover: null,
       allowedDomains: ['https://openpreview.dev'], // Add allowed domains
       //#endregion
-      isOriginAllowed: function (origin) {
-        return this.allowedDomains.includes(origin);
+      isPreviewDomain: function (origin) {
+        const domainIsAllowed = this.allowedDomains.includes(origin);
+        const allowedDomain = this.allowedDomains.find(domain => origin.includes(domain));
+        const isPreviewDomain = origin.includes(allowedDomain);
+        return domainIsAllowed && isPreviewDomain;
       },
       //#region Init Func
       init: function (config) {
@@ -27,9 +30,9 @@ try {
 
         const weborigin = window.location.origin;
         console.log('weborigin', weborigin);
-        const isOriginAllowed = this.isOriginAllowed(weborigin);
+        const isAllowed = this.isPreviewDomain(weborigin);
 
-        if (!!isOriginAllowed) {
+        if (!isAllowed) {
           console.log('Origin not allowed');
           return;
         }
@@ -1543,12 +1546,7 @@ try {
 
       // Add this new method
       loadTestData: async function () {
-        console.log('Loading test data');
-        const url = new URL(window.location.href);
-        if (!this.allowedDomains.includes(url.hostname)) {
-          console.warn('Domain not allowed to load test data:', url.hostname);
-          return;
-        }
+      
         const res = await fetch('http://localhost:3003');
         console.log(res);
         this.comments = [
@@ -1559,7 +1557,7 @@ try {
             selector: 'body',
             xPercent: 10,
             yPercent: 10,
-            url: 'https://pr1.openpreview.dev/test',
+            url: 'https://12.openpreview.dev/test',
             user: {
               name: 'Alice Johnson',
               avatar: 'https://i.pravatar.cc/150?img=1',
@@ -1585,7 +1583,7 @@ try {
             selector: 'body',
             xPercent: 30,
             yPercent: 20,
-            url: 'https://pr1.openpreview.dev',
+            url: 'https://12.openpreview.dev',
             user: {
               name: 'Charlie Brown',
               avatar: 'https://i.pravatar.cc/150?img=3',
@@ -1597,7 +1595,8 @@ try {
         ];
 
         console.log('Rendering test comments');
-        this.comments.forEach(comment => {
+        const allowedComments = this.comments.filter(comment => this.isPreviewDomain(comment.url));
+        allowedComments.forEach(comment => {
           this.renderComment(comment);
         });
 
