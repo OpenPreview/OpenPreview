@@ -29,7 +29,7 @@ const corsOptions: cors.CorsOptions = {
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:3002',
-      'https://yourdomain.com'
+      'http://localhost:3003'
     ];
     
     if (allowedOrigins.includes(origin) || origin.endsWith('.yourdomain.com')) {

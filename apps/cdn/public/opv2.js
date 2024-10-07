@@ -1,9 +1,10 @@
 try {
-  (function() {
+  (function () {
     console.log('OpenPreview script starting execution');
 
     // Main OpenPreview object
     const OpenPreview = {
+      //#region Vars
       clientId: null,
       comments: [],
       toolbar: null,
@@ -14,11 +15,26 @@ try {
       settingsPopover: null,
       menuPopover: null,
       addCommentPopover: null,
-
-      init: function(config) {
+      allowedDomains: ['https://openpreview.dev'], // Add allowed domains
+      //#endregion
+      isOriginAllowed: function (origin) {
+        return this.allowedDomains.includes(origin);
+      },
+      //#region Init Func
+      init: function (config) {
         console.log('OpenPreview initializing...');
         this.clientId = config.clientId;
-        
+
+        const weborigin = window.location.origin;
+        console.log('weborigin', weborigin);
+        const isOriginAllowed = this.isOriginAllowed(weborigin);
+
+        if (!!isOriginAllowed) {
+          console.log('Origin not allowed');
+          return;
+        }
+        console.log('Origin allowed');
+
         const initializeComponents = () => {
           this.createToolbar();
           this.createCommentForm();
@@ -32,18 +48,27 @@ try {
         } else {
           initializeComponents();
         }
-        
+
         this.setupEventListeners();
 
         // Periodically update comment positions
         setInterval(() => {
           this.comments.forEach(comment => {
-            const marker = document.querySelector(`.opv-comment-marker[data-comment-id="${comment.id}"]`);
-            const detailsBox = document.querySelector(`.opv-comment-details[data-comment-id="${comment.id}"]`);
+            const marker = document.querySelector(
+              `.opv-comment-marker[data-comment-id="${comment.id}"]`,
+            );
+            const detailsBox = document.querySelector(
+              `.opv-comment-details[data-comment-id="${comment.id}"]`,
+            );
             if (marker && detailsBox) {
               const targetElement = this.findTargetElement(comment.selector);
               if (targetElement) {
-                this.updateCommentPosition(marker, detailsBox, comment, targetElement);
+                this.updateCommentPosition(
+                  marker,
+                  detailsBox,
+                  comment,
+                  targetElement,
+                );
               }
             }
           });
@@ -56,22 +81,33 @@ try {
         this.startAddingComment = this.startAddingComment.bind(this);
         this.showCommentForm = this.showCommentForm.bind(this);
       },
+      //#endregion
 
-      handleResize: function() {
+      //#region Supporting Func
+      handleResize: function () {
         // Recalculate positions of all comments
         this.comments.forEach(comment => {
-          const marker = document.querySelector(`.opv-comment-marker[data-comment-id="${comment.id}"]`);
-          const detailsBox = document.querySelector(`.opv-comment-details[data-comment-id="${comment.id}"]`);
+          const marker = document.querySelector(
+            `.opv-comment-marker[data-comment-id="${comment.id}"]`,
+          );
+          const detailsBox = document.querySelector(
+            `.opv-comment-details[data-comment-id="${comment.id}"]`,
+          );
           if (marker && detailsBox) {
             const targetElement = this.findTargetElement(comment.selector);
             if (targetElement) {
-              this.updateCommentPosition(marker, detailsBox, comment, targetElement);
+              this.updateCommentPosition(
+                marker,
+                detailsBox,
+                comment,
+                targetElement,
+              );
             }
           }
         });
       },
 
-      createToolbar: function() {
+      createToolbar: function () {
         console.log('Creating toolbar...');
         this.toolbar = document.createElement('div');
         this.toolbar.id = 'opv-toolbar';
@@ -91,6 +127,7 @@ try {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
           z-index: 2147483646 !important;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+          transition: all 0.3s ease !important;
         `;
 
         this.toolbar.style.cssText += `
@@ -105,13 +142,13 @@ try {
 
         const leftGroup = this.createToolbarGroup([
           { icon: 'chat', title: 'Comments' },
-          { icon: 'inbox', title: 'Inbox' }
+          { icon: 'inbox', title: 'Inbox' },
         ]);
 
         const rightGroup = this.createToolbarGroup([
           { icon: 'eye', title: 'Preview' },
           { icon: 'settings', title: 'Settings' },
-          { icon: 'menu', title: 'Menu' }
+          // { icon: 'drag', title: 'Drag' },
         ]);
 
         this.toolbar.appendChild(leftGroup);
@@ -119,9 +156,10 @@ try {
 
         document.body.appendChild(this.toolbar);
         console.log('Toolbar added to body');
+
       },
 
-      createToolbarGroup: function(items) {
+      createToolbarGroup: function (items) {
         const group = document.createElement('div');
         group.style.cssText = `
           display: flex !important;
@@ -141,7 +179,7 @@ try {
         return group;
       },
 
-      createToolbarButton: function(icon, title) {
+      createToolbarButton: function (icon, title) {
         const button = document.createElement('button');
         button.title = title;
         button.style.cssText = `
@@ -188,15 +226,15 @@ try {
           case 'settings':
             button.addEventListener('click', () => this.showSettings());
             break;
-          case 'menu':
-            button.addEventListener('click', () => this.toggleMenu());
+          case 'drag':
+            button.addEventListener('mousedown', () => this.makeDraggable(this.toolbar));
             break;
         }
 
         return button;
       },
 
-      createSeparator: function() {
+      createSeparator: function () {
         const separator = document.createElement('div');
         separator.style.cssText = `
           width: 1px !important;
@@ -207,20 +245,21 @@ try {
         return separator;
       },
 
-      getIconSVG: function(icon) {
+      getIconSVG: function (icon) {
         // You can replace these with actual SVG icons
         const icons = {
           chat: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
-          inbox: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>',
+          inbox:
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>',
           eye: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
-          settings: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2 2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
-          menu: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>',
-          'eye-off': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+          settings:
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2 2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+          drag: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>',
         };
         return icons[icon] || '';
       },
 
-      createButton: function(title) {
+      createButton: function (title) {
         const btn = document.createElement('button');
         btn.textContent = title;
         btn.style.cssText = `
@@ -246,7 +285,7 @@ try {
         return btn;
       },
 
-      createCommentForm: function() {
+      createCommentForm: function () {
         this.commentForm = document.createElement('div');
         this.commentForm.id = 'opv-comment-form';
         this.commentForm.style.cssText = `
@@ -324,39 +363,97 @@ try {
       },
 
       makeDraggable: function(element) {
-        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        element.style.cursor = 'move';
-        element.onmousedown = dragMouseDown;
-
-        function dragMouseDown(e) {
-          e = e || window.event;
+        let isDragging = false;
+        let startX, startY;
+        let startLeft, startBottom;
+      
+        const dragHandle = element.querySelector('button[title="Drag"]');
+        if (!dragHandle) return;
+      
+        dragHandle.addEventListener('mousedown', startDragging);
+        dragHandle.addEventListener('touchstart', startDragging);
+      
+        function startDragging(e) {
           e.preventDefault();
-          pos3 = e.clientX;
-          pos4 = e.clientY;
-          document.onmouseup = closeDragElement;
-          document.onmousemove = elementDrag;
+          isDragging = true;
+          
+          if (e.type === 'mousedown') {
+            startX = e.clientX;
+            startY = e.clientY;
+          } else if (e.type === 'touchstart') {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+          }
+      
+          startLeft = element.offsetLeft;
+          startBottom = parseInt(element.style.bottom, 10) || 20; // Default to 20px if not set
+      
+          document.addEventListener('mousemove', drag);
+          document.addEventListener('touchmove', drag);
+          document.addEventListener('mouseup', stopDragging);
+          document.addEventListener('touchend', stopDragging);
         }
-
-        function elementDrag(e) {
-          e = e || window.event;
-          e.preventDefault();
-          pos1 = pos3 - e.clientX;
-          pos2 = pos4 - e.clientY;
-          pos3 = e.clientX;
-          pos4 = e.clientY;
-          element.style.top = (element.offsetTop - pos2) + "px";
-          element.style.left = (element.offsetLeft - pos1) + "px";
-          element.style.bottom = 'auto';
+      
+        function drag(e) {
+          if (!isDragging) return;
+      
+          let clientX, clientY;
+          if (e.type === 'mousemove') {
+            clientX = e.clientX;
+            clientY = e.clientY;
+          } else if (e.type === 'touchmove') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+          }
+      
+          const deltaX = clientX - startX;
+          const deltaY = startY - clientY;
+      
+          const newLeft = startLeft + deltaX;
+          const newBottom = startBottom + deltaY;
+      
+          element.style.left = `${newLeft}px`;
+          element.style.bottom = `${newBottom}px`;
           element.style.transform = 'none';
         }
-
-        function closeDragElement() {
-          document.onmouseup = null;
-          document.onmousemove = null;
+      
+        function stopDragging() {
+          isDragging = false;
+          document.removeEventListener('mousemove', drag);
+          document.removeEventListener('touchmove', drag);
+          document.removeEventListener('mouseup', stopDragging);
+          document.removeEventListener('touchend', stopDragging);
         }
       },
-
-      setupEventListeners: function() {
+      
+      togglePopover: function (popover) {
+        console.log('Toggling popover', popover);
+        if (popover.style.display === 'none' || popover.style.display === '') {
+          popover.style.display = 'block';
+          this.positionPopover(popover);
+        } else {
+          popover.style.display = 'none';
+        }
+        console.log('Popover display after toggle:', popover.style.display);
+      },
+      
+      // Update the showSettings function to use togglePopover
+      showSettings: function () {
+        console.log('showSettings called');
+        if (!this.settingsPopover) {
+          this.createSettingsPopover();
+        }
+        this.togglePopover(this.settingsPopover);
+      },
+      
+      // Update the toggleMenu function to use togglePopover
+      toggleMenu: function () {
+        if (!this.menuPopover) {
+          this.createMenuPopover();
+        }
+        this.togglePopover(this.menuPopover);
+      },
+      setupEventListeners: function () {
         document.addEventListener('DOMContentLoaded', () => {
           const addCommentBtn = this.toolbar.querySelector('button');
           addCommentBtn.addEventListener('click', () => this.showCommentForm());
@@ -367,27 +464,32 @@ try {
           const cancelBtn = this.commentForm.querySelectorAll('button')[1];
           cancelBtn.addEventListener('click', () => this.hideCommentForm());
 
-          document.addEventListener('click', (e) => {
+          document.addEventListener('click', e => {
             if (e.target.closest('.opv-comment-marker')) {
-              this.showCommentDetails(e.target.closest('.opv-comment-marker').dataset.commentId);
+              this.showCommentDetails(
+                e.target.closest('.opv-comment-marker').dataset.commentId,
+              );
             }
           });
         });
 
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', e => {
           if (this.settingsPopover && !this.settingsPopover.contains(e.target) && !e.target.closest('button[title="Settings"]')) {
             this.settingsPopover.style.display = 'none';
-          }
-          if (this.menuPopover && !this.menuPopover.contains(e.target) && !e.target.closest('button[title="Menu"]')) {
-            this.menuPopover.style.display = 'none';
           }
         });
       },
 
-      showCommentForm: function() {
-        const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-        const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-        
+      showCommentForm: function () {
+        const viewportWidth = Math.max(
+          document.documentElement.clientWidth || 0,
+          window.innerWidth || 0,
+        );
+        const viewportHeight = Math.max(
+          document.documentElement.clientHeight || 0,
+          window.innerHeight || 0,
+        );
+
         const x = viewportWidth / 2;
         const y = viewportHeight / 2;
 
@@ -398,11 +500,11 @@ try {
         this.commentForm.dataset.y = y.toString();
       },
 
-      hideCommentForm: function() {
+      hideCommentForm: function () {
         this.commentForm.style.display = 'none';
       },
 
-      addComment: function() {
+      addComment: function () {
         const textarea = this.commentForm.querySelector('textarea');
         const commentText = textarea.value.trim();
         if (!commentText) return;
@@ -413,7 +515,8 @@ try {
           return;
         }
 
-        const { selector, xPercent, yPercent } = this.calculateRelativePosition(targetElement);
+        const { selector, xPercent, yPercent } =
+          this.calculateRelativePosition(targetElement);
 
         const comment = {
           id: Date.now().toString(),
@@ -424,11 +527,11 @@ try {
           url: window.location.href,
           user: {
             name: 'John Doe',
-            avatar: 'https://i.pravatar.cc/150?img=8'
+            avatar: 'https://i.pravatar.cc/150?img=8',
           },
           timestamp: new Date().toISOString(),
           replies: [],
-          color: '#1DA1F2' // Default color
+          color: '#1DA1F2', // Default color
         };
 
         console.log('Comment object to be sent to server:', comment);
@@ -441,7 +544,7 @@ try {
         this.showNotification('Comment added successfully!');
       },
 
-      calculateRelativePosition: function(element) {
+      calculateRelativePosition: function (element) {
         const rect = element.getBoundingClientRect();
         const x = parseFloat(this.commentForm.dataset.x);
         const y = parseFloat(this.commentForm.dataset.y);
@@ -452,42 +555,60 @@ try {
         return {
           selector: this.getUniqueSelector(element),
           xPercent: xPercent,
-          yPercent: yPercent
+          yPercent: yPercent,
         };
       },
 
-      getUniqueSelector: function(element) {
+      getUniqueSelector: function (element) {
         if (element.id) {
           return `#${element.id}`;
         }
         if (element.className) {
-          const classes = element.className.split(' ').filter(c => c.trim() !== '');
+          const classes = element.className
+            .split(' ')
+            .filter(c => c.trim() !== '');
           if (classes.length > 0) {
             return `.${classes.join('.')}`;
           }
         }
-        
+
         const tag = element.tagName.toLowerCase();
         if (tag === 'body' || tag === 'html') {
           return tag;
         }
-        
+
         const parent = element.parentNode;
         const siblings = parent.children;
         const index = Array.from(siblings).indexOf(element) + 1;
-        
+
         return `${this.getUniqueSelector(parent)} > ${tag}:nth-child(${index})`;
       },
 
-      getTargetElement: function() {
+      getTargetElement: function () {
         const x = parseFloat(this.commentForm.dataset.x);
         const y = parseFloat(this.commentForm.dataset.y);
         return document.elementFromPoint(x, y);
       },
 
-      renderComment: function(comment) {
+      renderComment: function (comment) {
         console.log('Rendering comment:', comment);
         let targetElement = this.findTargetElement(comment.selector);
+        const webPath = window.location.pathname;
+        const commentPath = new URL(comment.url).pathname;
+
+        console.log(
+          'commentPath',
+          commentPath,
+          'webPath',
+          webPath,
+          'isEqual',
+          commentPath === webPath,
+        );
+
+        if (webPath !== commentPath) {
+          console.log('Comment path matches current page');
+          return null;
+        }
         if (!targetElement) {
           console.warn('Target element not found for comment:', comment);
           targetElement = document.body; // Fallback to body if element not found
@@ -495,8 +616,8 @@ try {
 
         const updatePosition = () => {
           const rect = targetElement.getBoundingClientRect();
-          const x = rect.left + (rect.width * comment.xPercent / 100);
-          const y = rect.top + (rect.height * comment.yPercent / 100);
+          const x = rect.left + (rect.width * comment.xPercent) / 100;
+          const y = rect.top + (rect.height * comment.yPercent) / 100;
 
           marker.style.left = `${x}px`;
           marker.style.top = `${y}px`;
@@ -528,7 +649,8 @@ try {
           user-select: none;
         `;
 
-        marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+        marker.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
 
         marker.style.cssText += `
           @media (max-width: 768px) {
@@ -631,7 +753,7 @@ try {
         colorPicker.type = 'color';
         colorPicker.value = comment.color || '#1DA1F2';
         colorPicker.style.marginTop = '10px';
-        colorPicker.addEventListener('change', (e) => {
+        colorPicker.addEventListener('change', e => {
           const newColor = e.target.value;
           comment.color = newColor;
           marker.style.backgroundColor = newColor;
@@ -653,14 +775,18 @@ try {
         this.makeCommentDraggable(marker, detailsBox, comment, updatePosition);
       },
 
-      showCommentDetails: function(commentId) {
-        const detailsBox = document.querySelector(`.opv-comment-details[data-comment-id="${commentId}"]`);
-        const marker = document.querySelector(`.opv-comment-marker[data-comment-id="${commentId}"]`);
-        
+      showCommentDetails: function (commentId) {
+        const detailsBox = document.querySelector(
+          `.opv-comment-details[data-comment-id="${commentId}"]`,
+        );
+        const marker = document.querySelector(
+          `.opv-comment-marker[data-comment-id="${commentId}"]`,
+        );
+
         if (detailsBox && marker) {
           const isVisible = detailsBox.style.display === 'block';
           detailsBox.style.display = isVisible ? 'none' : 'block';
-          
+
           if (!isVisible) {
             const markerRect = marker.getBoundingClientRect();
             detailsBox.style.left = `${markerRect.right + 10}px`;
@@ -669,19 +795,24 @@ try {
         }
       },
 
-      makeCommentDraggable: function(marker, detailsBox, comment, updatePosition) {
+      makeCommentDraggable: function (
+        marker,
+        detailsBox,
+        comment,
+        updatePosition,
+      ) {
         let isDragging = false;
         let startX, startY;
         let moveThreshold = 5; // pixels
         let hasMovedBeyondThreshold = false;
         let clickStartTime;
 
-        const onMove = (e) => {
+        const onMove = e => {
           const clientX = e.clientX || (e.touches && e.touches[0].clientX);
           const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-          
+
           if (!isDragging) return;
-          
+
           const dx = clientX - startX;
           const dy = clientY - startY;
 
@@ -692,7 +823,7 @@ try {
               return;
             }
           }
-          
+
           const targetElement = document.querySelector(comment.selector);
           const rect = targetElement.getBoundingClientRect();
 
@@ -705,7 +836,7 @@ try {
           startY = clientY;
         };
 
-        const onEnd = (e) => {
+        const onEnd = e => {
           const endTime = new Date().getTime();
           const clickDuration = endTime - clickStartTime;
 
@@ -723,7 +854,7 @@ try {
           marker.style.cursor = 'pointer';
         };
 
-        const onStart = (e) => {
+        const onStart = e => {
           e.preventDefault(); // Prevent text selection and default touch behaviors
           isDragging = true;
           hasMovedBeyondThreshold = false;
@@ -741,14 +872,14 @@ try {
         marker.addEventListener('touchstart', onStart);
 
         // Add a separate click event listener
-        marker.addEventListener('click', (e) => {
+        marker.addEventListener('click', e => {
           if (!hasMovedBeyondThreshold) {
             this.showCommentDetails(comment.id);
           }
         });
       },
 
-      showNotification: function(message) {
+      showNotification: function (message) {
         const notification = document.createElement('div');
         notification.textContent = message;
         notification.style.cssText = `
@@ -789,7 +920,7 @@ try {
         }, 3000);
       },
 
-      createCommentsList: function() {
+      createCommentsList: function () {
         this.commentsList = document.createElement('div');
         this.commentsList.id = 'opv-comments-list';
         this.commentsList.style.cssText = `
@@ -810,7 +941,7 @@ try {
         document.body.appendChild(this.commentsList);
       },
 
-      toggleCommentsList: function() {
+      toggleCommentsList: function () {
         const isVisible = this.commentsList.style.display === 'block';
         this.commentsList.style.display = isVisible ? 'none' : 'block';
         if (!isVisible) {
@@ -821,15 +952,21 @@ try {
         }
       },
 
-      updateCommentsList: function() {
+      updateCommentsList: function () {
         this.commentsList.innerHTML = '';
-        this.comments.forEach(comment => {
-          const commentElement = this.createCommentElement(comment);
-          this.commentsList.appendChild(commentElement);
-        });
+        this.comments
+          .filter(a => {
+            const commentPath = new URL(a.url).pathname;
+            const currentPath = new URL(window.location.href).pathname;
+            return commentPath === currentPath;
+          })
+          .forEach(comment => {
+            const commentElement = this.createCommentElement(comment);
+            this.commentsList.appendChild(commentElement);
+          });
       },
 
-      createCommentElement: function(comment) {
+      createCommentElement: function (comment) {
         const commentElement = document.createElement('div');
         commentElement.style.cssText = `
           margin-bottom: 16px;
@@ -846,8 +983,10 @@ try {
           commentElement.style.backgroundColor = '#f7f9fa';
         });
         commentElement.addEventListener('click', () => {
-        const marker = document.querySelector(`.opv-comment-marker[data-comment-id="${comment.id}"]`);
-        if (marker) {
+          const marker = document.querySelector(
+            `.opv-comment-marker[data-comment-id="${comment.id}"]`,
+          );
+          if (marker) {
             marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
             this.showCommentDetails(comment.id);
           }
@@ -919,7 +1058,7 @@ try {
         return commentElement;
       },
 
-      createReplyElement: function(reply) {
+      createReplyElement: function (reply) {
         const replyElement = document.createElement('div');
         replyElement.style.cssText = `
           margin-bottom: 16px;
@@ -986,7 +1125,7 @@ try {
         return replyElement;
       },
 
-      createReplyForm: function(commentId) {
+      createReplyForm: function (commentId) {
         const replyForm = document.createElement('div');
         replyForm.style.cssText = `
           margin-top: 16px;
@@ -1010,7 +1149,8 @@ try {
 
         textarea.addEventListener('focus', () => {
           textarea.style.border = '1px solid #1DA1F2';
-          textarea.style.boxShadow = 'inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(29, 161, 242, 0.2)';
+          textarea.style.boxShadow =
+            'inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(29, 161, 242, 0.2)';
         });
 
         textarea.addEventListener('blur', () => {
@@ -1054,7 +1194,7 @@ try {
         return replyForm;
       },
 
-      addReply: function(commentId, replyContent) {
+      addReply: function (commentId, replyContent) {
         const comment = this.comments.find(c => c.id === commentId);
         if (comment) {
           const reply = {
@@ -1062,9 +1202,9 @@ try {
             content: replyContent,
             user: {
               name: 'John Doe',
-              avatar: 'https://i.pravatar.cc/150?img=8'
+              avatar: 'https://i.pravatar.cc/150?img=8',
             },
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           };
           comment.replies.push(reply);
           this.updateCommentDetails(comment);
@@ -1073,8 +1213,10 @@ try {
         }
       },
 
-      updateCommentDetails: function(comment) {
-        const detailsBox = document.querySelector(`.opv-comment-details[data-comment-id="${comment.id}"]`);
+      updateCommentDetails: function (comment) {
+        const detailsBox = document.querySelector(
+          `.opv-comment-details[data-comment-id="${comment.id}"]`,
+        );
         if (detailsBox) {
           // Update replies section
           let repliesContainer = detailsBox.querySelector('.replies-container');
@@ -1086,14 +1228,17 @@ try {
               padding-top: 15px;
               border-top: 1px solid #eee;
             `;
-            detailsBox.insertBefore(repliesContainer, detailsBox.querySelector('.reply-form'));
+            detailsBox.insertBefore(
+              repliesContainer,
+              detailsBox.querySelector('.reply-form'),
+            );
           }
 
           // Clear existing replies
           repliesContainer.innerHTML = '';
 
           // Add updated replies
-            comment.replies.forEach(reply => {
+          comment.replies.forEach(reply => {
             const replyElement = document.createElement('div');
             replyElement.style.marginBottom = '10px';
             replyElement.innerHTML = `
@@ -1106,8 +1251,8 @@ try {
               </div>
               <div style="margin-left: 40px;">${reply.content}</div>
             `;
-              repliesContainer.appendChild(replyElement);
-            });
+            repliesContainer.appendChild(replyElement);
+          });
 
           // Update color picker value
           const colorPicker = detailsBox.querySelector('input[type="color"]');
@@ -1117,25 +1262,31 @@ try {
         }
       },
 
-      toggleResolveComment: function(commentId) {
+      toggleResolveComment: function (commentId) {
         const comment = this.comments.find(c => c.id === commentId);
         if (comment) {
           comment.resolved = !comment.resolved;
           this.updateCommentMarker(comment);
           this.updateCommentDetails(comment);
           this.updateCommentsList();
-          this.showNotification(`Comment ${comment.resolved ? 'resolved' : 'unresolved'}`);
+          this.showNotification(
+            `Comment ${comment.resolved ? 'resolved' : 'unresolved'}`,
+          );
         }
       },
 
-      updateCommentMarker: function(comment) {
-        const marker = document.querySelector(`.opv-comment-marker[data-comment-id="${comment.id}"]`);
+      updateCommentMarker: function (comment) {
+        const marker = document.querySelector(
+          `.opv-comment-marker[data-comment-id="${comment.id}"]`,
+        );
         if (marker) {
-          marker.style.backgroundColor = comment.resolved ? '#4CAF50' : '#1e3a8a';
+          marker.style.backgroundColor = comment.resolved
+            ? '#4CAF50'
+            : '#1e3a8a';
         }
       },
 
-      createReplyElementForList: function(reply) {
+      createReplyElementForList: function (reply) {
         const replyElement = document.createElement('div');
         replyElement.style.cssText = `
           margin-top: 8px;
@@ -1157,55 +1308,72 @@ try {
 
       // Add these new methods to the OpenPreview object
 
-      showInbox: function() {
+      showInbox: function () {
         console.log('Showing inbox (comments list)');
         this.toggleCommentsList();
       },
 
-      togglePreviewMode: function() {
+      togglePreviewMode: function () {
         this.commentsVisible = !this.commentsVisible;
         const commentMarkers = document.querySelectorAll('.opv-comment-marker');
-        const commentDetails = document.querySelectorAll('.opv-comment-details');
-        
+        const commentDetails = document.querySelectorAll(
+          '.opv-comment-details',
+        );
+
         commentMarkers.forEach(marker => {
           marker.style.display = this.commentsVisible ? 'flex' : 'none';
         });
-        
+
         commentDetails.forEach(details => {
           details.style.display = 'none'; // Close all open comment details
         });
-        
-        console.log(`Comments visibility ${this.commentsVisible ? 'on' : 'off'}`);
+
+        console.log(
+          `Comments visibility ${this.commentsVisible ? 'on' : 'off'}`,
+        );
         this.updateEyeIcon();
       },
 
-      updateEyeIcon: function() {
+      updateEyeIcon: function () {
         const eyeButton = this.toolbar.querySelector('button[title="Preview"]');
         if (eyeButton) {
-          eyeButton.innerHTML = this.getIconSVG(this.commentsVisible ? 'eye' : 'eye-off');
+          eyeButton.innerHTML = this.getIconSVG(
+            this.commentsVisible ? 'eye' : 'eye-off',
+          );
         }
       },
 
-      showSettings: function() {
+      showSettings: function () {
+        console.log('showSettings called');
         if (!this.settingsPopover) {
+          console.log('creating settingsPopover');
           this.createSettingsPopover();
         }
+        console.log('settingsPopover created', this.settingsPopover);
         this.settingsPopover.style.display = 'block';
         this.positionPopover(this.settingsPopover);
       },
 
-      createSettingsPopover: function() {
+      createSettingsPopover: function () {
         this.settingsPopover = this.createPopover('Settings', [
           { label: 'Notification Sound', type: 'checkbox' },
           { label: 'Email Notifications', type: 'checkbox' },
-          { label: 'Theme', type: 'select', options: ['Light', 'Dark', 'System'] }
+          {
+            label: 'Theme',
+            type: 'select',
+            options: ['Light', 'Dark', 'System'],
+          },
+          { label: 'My Profile', type: 'button' },
+          { label: 'Help Center', type: 'button' },
+          { label: 'Logout', type: 'button' },
         ]);
       },
 
-      toggleMenu: function() {
+      toggleMenu: function () {
         if (!this.menuPopover) {
           this.createMenuPopover();
         }
+        console.log('Showing menu ', this.menuPopover, this.menuPopover.style.display);
         if (this.menuPopover.style.display === 'none') {
           this.menuPopover.style.display = 'block';
           this.positionPopover(this.menuPopover);
@@ -1214,15 +1382,15 @@ try {
         }
       },
 
-      createMenuPopover: function() {
+      createMenuPopover: function () {
         this.menuPopover = this.createPopover('Menu', [
           { label: 'My Profile', type: 'button' },
           { label: 'Help Center', type: 'button' },
-          { label: 'Logout', type: 'button' }
+          { label: 'Logout', type: 'button' },
         ]);
       },
 
-      createPopover: function(title, items) {
+      createPopover: function (title, items) {
         const toolbarHeight = 48; // Height of the toolbar
         const cornerRadius = toolbarHeight / 2; // Calculate corner radius based on toolbar height
 
@@ -1335,7 +1503,8 @@ try {
         return popover;
       },
 
-      togglePopover: function(popover) {
+      togglePopover: function (popover) {
+        console.log('togglePopover called', popover.style.display === 'none');
         if (popover.style.display === 'none') {
           popover.style.display = 'block';
         } else {
@@ -1343,17 +1512,17 @@ try {
         }
       },
 
-      positionPopover: function(popover) {
+      positionPopover: function (popover) {
         const toolbarRect = this.toolbar.getBoundingClientRect();
         const popoverRect = popover.getBoundingClientRect();
-        
+      
         // Position the popover just above the toolbar
         popover.style.bottom = `${window.innerHeight - toolbarRect.top + 10}px`;
-        
+      
         // Ensure the popover doesn't go off-screen on the left or right
         const leftPosition = toolbarRect.left + (toolbarRect.width - popoverRect.width) / 2;
         const rightEdge = leftPosition + popoverRect.width;
-        
+      
         if (leftPosition < 10) {
           popover.style.left = '10px';
           popover.style.transform = 'none';
@@ -1367,25 +1536,33 @@ try {
         }
       },
 
-      showInviteDialog: function() {
+      showInviteDialog: function () {
         console.log('Showing invite dialog');
         // Implement invite functionality
       },
 
       // Add this new method
-      loadTestData: function() {
+      loadTestData: async function () {
         console.log('Loading test data');
+        const url = new URL(window.location.href);
+        if (!this.allowedDomains.includes(url.hostname)) {
+          console.warn('Domain not allowed to load test data:', url.hostname);
+          return;
+        }
+        const res = await fetch('http://localhost:3003');
+        console.log(res);
         this.comments = [
           {
             id: '1',
-            content: 'This is a test comment. It demonstrates how comments look in the system.',
+            content:
+              'This is a test comment. It demonstrates how comments look in the system.',
             selector: 'body',
             xPercent: 10,
             yPercent: 10,
-            url: window.location.href,
+            url: 'https://pr1.openpreview.dev/test',
             user: {
               name: 'Alice Johnson',
-              avatar: 'https://i.pravatar.cc/150?img=1'
+              avatar: 'https://i.pravatar.cc/150?img=1',
             },
             timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
             replies: [
@@ -1394,28 +1571,29 @@ try {
                 content: 'This is a reply to the test comment.',
                 user: {
                   name: 'Bob Smith',
-                  avatar: 'https://i.pravatar.cc/150?img=2'
+                  avatar: 'https://i.pravatar.cc/150?img=2',
                 },
-                timestamp: new Date(Date.now() - 1800000).toISOString() // 30 minutes ago
-              }
+                timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 minutes ago
+              },
             ],
-            resolved: false
+            resolved: false,
           },
           {
             id: '2',
-            content: 'Here\'s another comment to show multiple comments on the page.',
+            content:
+              "Here's another comment to show multiple comments on the page.",
             selector: 'body',
             xPercent: 30,
             yPercent: 20,
-            url: window.location.href,
+            url: 'https://pr1.openpreview.dev',
             user: {
               name: 'Charlie Brown',
-              avatar: 'https://i.pravatar.cc/150?img=3'
+              avatar: 'https://i.pravatar.cc/150?img=3',
             },
             timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
             replies: [],
-            resolved: false
-          }
+            resolved: false,
+          },
         ];
 
         console.log('Rendering test comments');
@@ -1426,7 +1604,7 @@ try {
         this.updateCommentsList();
       },
 
-      findTargetElement: function(selector) {
+      findTargetElement: function (selector) {
         if (!selector) {
           console.warn('No selector provided for findTargetElement');
           return document.body; // Fallback to body if no selector is provided
@@ -1440,7 +1618,8 @@ try {
         const selectorParts = selector.split(' > ');
         let currentSelector = '';
         for (let i = selectorParts.length - 1; i >= 0; i--) {
-          currentSelector = selectorParts[i] + (currentSelector ? ' > ' + currentSelector : '');
+          currentSelector =
+            selectorParts[i] + (currentSelector ? ' > ' + currentSelector : '');
           element = document.querySelector(currentSelector);
           if (element) return element;
         }
@@ -1464,10 +1643,15 @@ try {
         return document.body; // Fallback to body if no matching element is found
       },
 
-      updateCommentPosition: function(marker, detailsBox, comment, targetElement) {
+      updateCommentPosition: function (
+        marker,
+        detailsBox,
+        comment,
+        targetElement,
+      ) {
         const rect = targetElement.getBoundingClientRect();
-        const x = rect.left + (rect.width * comment.xPercent / 100);
-        const y = rect.top + (rect.height * comment.yPercent / 100);
+        const x = rect.left + (rect.width * comment.xPercent) / 100;
+        const y = rect.top + (rect.height * comment.yPercent) / 100;
 
         marker.style.left = `${x}px`;
         marker.style.top = `${y}px`;
@@ -1477,49 +1661,49 @@ try {
       },
 
       // Add this new method
-      startAddingComment: function() {
+      startAddingComment: function () {
         console.log('Starting to add a comment');
         if (this.addCommentPopover) {
           this.addCommentPopover.remove();
         }
         this.addCommentPopover = this.createPopover('Add Comment', [
-          { label: 'Click on the page to place your comment', type: 'message' }
+          { label: 'Click on the page to place your comment', type: 'message' },
         ]);
         this.addCommentPopover.style.display = 'block';
         this.positionPopover(this.addCommentPopover);
-        
+
         this.isSelectingCommentLocation = true;
         document.body.style.cursor = 'crosshair';
-        
+
         // Remove any existing click event listener
         document.removeEventListener('click', this.handleCommentPlacement);
-        
+
         // Add the click event listener
         document.addEventListener('click', this.handleCommentPlacement);
-        
+
         console.log('Comment placement listener added');
       },
 
       // Add this new method
-      handleCommentPlacement: function(e) {
+      handleCommentPlacement: function (e) {
         console.log('handleCommentPlacement called', e);
         if (!this.isSelectingCommentLocation) {
           console.log('Not selecting comment location, returning');
           return;
         }
-        
+
         // Prevent the click event from being triggered on the toolbar
         if (e.target.closest('#opv-toolbar')) {
           console.log('Click on toolbar, ignoring');
           return;
         }
-        
+
         e.preventDefault();
         e.stopPropagation();
         this.isSelectingCommentLocation = false;
         document.body.style.cursor = 'default';
         document.removeEventListener('click', this.handleCommentPlacement);
-        
+
         if (this.addCommentPopover) {
           this.addCommentPopover.remove();
           this.addCommentPopover = null;
@@ -1527,11 +1711,16 @@ try {
 
         const x = e.clientX;
         const y = e.clientY;
-        
+
         console.log('Comment placement coordinates:', x, y);
-        
+
         // Ensure x and y are numbers
-        if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
+        if (
+          typeof x === 'number' &&
+          typeof y === 'number' &&
+          !isNaN(x) &&
+          !isNaN(y)
+        ) {
           this.showCommentForm(x, y);
         } else {
           console.error('Invalid coordinates for comment placement', x, y);
@@ -1539,10 +1728,15 @@ try {
       },
 
       // Modify the showCommentForm method
-      showCommentForm: function(x, y) {
+      showCommentForm: function (x, y) {
         console.log('Showing comment form at coordinates:', x, y);
 
-        if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
+        if (
+          typeof x !== 'number' ||
+          typeof y !== 'number' ||
+          isNaN(x) ||
+          isNaN(y)
+        ) {
           console.error('Invalid coordinates for comment placement');
           return;
         }
@@ -1553,7 +1747,11 @@ try {
           return;
         }
 
-        const { selector, xPercent, yPercent } = this.calculateRelativePosition(targetElement, x, y);
+        const { selector, xPercent, yPercent } = this.calculateRelativePosition(
+          targetElement,
+          x,
+          y,
+        );
 
         const tempComment = {
           id: 'temp-' + Date.now(),
@@ -1564,16 +1762,18 @@ try {
           url: window.location.href,
           user: {
             name: 'John Doe',
-            avatar: 'https://i.pravatar.cc/150?img=8'
+            avatar: 'https://i.pravatar.cc/150?img=8',
           },
           timestamp: new Date().toISOString(),
           replies: [],
-          color: '#1DA1F2'
+          color: '#1DA1F2',
         };
 
         this.renderComment(tempComment);
 
-        const detailsBox = document.querySelector(`.opv-comment-details[data-comment-id="${tempComment.id}"]`);
+        const detailsBox = document.querySelector(
+          `.opv-comment-details[data-comment-id="${tempComment.id}"]`,
+        );
         if (detailsBox) {
           // Remove existing content
           detailsBox.innerHTML = '';
@@ -1602,7 +1802,8 @@ try {
 
           textarea.addEventListener('focus', () => {
             textarea.style.border = '1px solid #1DA1F2';
-            textarea.style.boxShadow = 'inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(29, 161, 242, 0.2)';
+            textarea.style.boxShadow =
+              'inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(29, 161, 242, 0.2)';
           });
 
           textarea.addEventListener('blur', () => {
@@ -1636,7 +1837,9 @@ try {
             const commentText = textarea.value.trim();
             if (commentText) {
               // Remove the temporary comment
-              const tempMarker = document.querySelector(`.opv-comment-marker[data-comment-id="${tempComment.id}"]`);
+              const tempMarker = document.querySelector(
+                `.opv-comment-marker[data-comment-id="${tempComment.id}"]`,
+              );
               if (tempMarker) {
                 tempMarker.remove();
               }
@@ -1646,7 +1849,7 @@ try {
               const newComment = {
                 ...tempComment,
                 id: Date.now().toString(),
-                content: commentText
+                content: commentText,
               };
 
               this.comments.push(newComment);
@@ -1665,7 +1868,7 @@ try {
         }
       },
 
-      calculateRelativePosition: function(element, x, y) {
+      calculateRelativePosition: function (element, x, y) {
         const rect = element.getBoundingClientRect();
         const xPercent = ((x - rect.left) / rect.width) * 100;
         const yPercent = ((y - rect.top) / rect.height) * 100;
@@ -1673,45 +1876,51 @@ try {
         return {
           selector: this.getUniqueSelector(element),
           xPercent: xPercent,
-          yPercent: yPercent
+          yPercent: yPercent,
         };
       },
 
-      getUniqueSelector: function(element) {
+      getUniqueSelector: function (element) {
         if (element.id) {
           return `#${element.id}`;
         }
         if (element.className && typeof element.className === 'string') {
-          const classes = element.className.split(' ').filter(c => c.trim() !== '');
+          const classes = element.className
+            .split(' ')
+            .filter(c => c.trim() !== '');
           if (classes.length > 0) {
             return `.${classes.join('.')}`;
           }
         }
-        
+
         const tag = element.tagName.toLowerCase();
         if (tag === 'body' || tag === 'html') {
           return tag;
         }
-        
+
         const parent = element.parentNode;
         const siblings = parent.children;
         const index = Array.from(siblings).indexOf(element) + 1;
-        
+
         return `${this.getUniqueSelector(parent)} > ${tag}:nth-child(${index})`;
-      }
+      },
+      //#endregion
     };
 
+    //#region Init OPV
     // Initialize OpenPreview immediately
     console.log('Initializing OpenPreview');
     OpenPreview.init({
-      clientId: window.opvClientId // We'll set this in the HTML
+      clientId: window.opvClientId, // We'll set this in the HTML
     });
 
     // Expose OpenPreview to the global scope if needed
     window.OpenPreview = OpenPreview;
+    //#endregion
 
     console.log('OpenPreview script finished execution');
   })();
 } catch (error) {
   console.error('Error in OpenPreview script:', error);
 }
+
