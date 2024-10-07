@@ -1546,12 +1546,7 @@ try {
 
       // Add this new method
       loadTestData: async function () {
-        console.log('Loading test data');
-        const weborigin = window.location.origin;
-        if (!this.isPreviewDomain(weborigin)) {
-          console.warn('Domain not allowed to load test data:', url.hostname);
-          return;
-        }
+      
         const res = await fetch('http://localhost:3003');
         console.log(res);
         this.comments = [
@@ -1600,7 +1595,8 @@ try {
         ];
 
         console.log('Rendering test comments');
-        this.comments.forEach(comment => {
+        const allowedComments = this.comments.filter(comment => this.isPreviewDomain(comment.url));
+        allowedComments.forEach(comment => {
           this.renderComment(comment);
         });
 
