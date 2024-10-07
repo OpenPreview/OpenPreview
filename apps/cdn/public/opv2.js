@@ -1559,7 +1559,7 @@ try {
             selector: 'body',
             xPercent: 10,
             yPercent: 10,
-            url: 'https://pr12.openpreview.dev/test',
+            url: 'https://12.openpreview.dev/test',
             user: {
               name: 'Alice Johnson',
               avatar: 'https://i.pravatar.cc/150?img=1',
@@ -1585,7 +1585,7 @@ try {
             selector: 'body',
             xPercent: 30,
             yPercent: 20,
-            url: 'https://pr12.openpreview.dev',
+            url: 'https://12.openpreview.dev',
             user: {
               name: 'Charlie Brown',
               avatar: 'https://i.pravatar.cc/150?img=3',
