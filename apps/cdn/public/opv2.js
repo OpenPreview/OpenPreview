@@ -18,10 +18,15 @@ try {
       allowedDomains: ['https://openpreview.dev'], // Add allowed domains
       //#endregion
       isPreviewDomain: function (origin) {
-        const domainIsAllowed = this.allowedDomains.includes(origin);
-        const allowedDomain = this.allowedDomains.find(domain => origin.includes(domain));
-        const isPreviewDomain = origin.includes(allowedDomain);
-        return domainIsAllowed && isPreviewDomain;
+        const allowedDomain = this.allowedDomains.find(domain => {
+          const regex = new RegExp(`^https://[\\w-]+\\.${domain.replace(/^https:\/\//, '')}$`);
+          return regex.test(origin);
+        });
+        return !!allowedDomain;
+      },
+      isCurrentPathAllowed: function (path) {
+        const currentPath = window.location.pathname;
+        return currentPath === path;
       },
       //#region Init Func
       init: function (config) {
@@ -1595,7 +1600,9 @@ try {
         ];
 
         console.log('Rendering test comments');
-        const allowedComments = this.comments.filter(comment => this.isPreviewDomain(comment.url));
+        const allowedComments = this.comments.filter(comment => 
+          this.isPreviewDomain(comment.url) && this.isCurrentPathAllowed(new URL(comment.url).pathname)
+        );
         allowedComments.forEach(comment => {
           this.renderComment(comment);
         });
