@@ -1601,7 +1601,11 @@ try {
 
         console.log('Rendering test comments');
         const allowedComments = this.comments.filter(comment => 
-          this.isPreviewDomain(comment.url) && this.isCurrentPathAllowed(new URL(comment.url).pathname)
+        {
+          const commentUrl = new URL(comment.url);
+          console.log(commentUrl.origin, commentUrl.pathname);
+          return this.isPreviewDomain(commentUrl.origin) && this.isCurrentPathAllowed(commentUrl.pathname)
+        }
         );
         allowedComments.forEach(comment => {
           this.renderComment(comment);
