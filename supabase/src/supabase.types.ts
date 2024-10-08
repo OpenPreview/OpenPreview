@@ -73,11 +73,13 @@ export type Database = {
           id: string
           parent_id: string | null
           project_id: string | null
+          resolved_at: string | null
+          selector: string
           updated_at: string | null
           url: string
           user_id: string | null
-          x_position: number
-          y_position: number
+          x_percent: number
+          y_percent: number
         }
         Insert: {
           content: string
@@ -85,11 +87,13 @@ export type Database = {
           id?: string
           parent_id?: string | null
           project_id?: string | null
+          resolved_at?: string | null
+          selector: string
           updated_at?: string | null
           url: string
           user_id?: string | null
-          x_position: number
-          y_position: number
+          x_percent: number
+          y_percent: number
         }
         Update: {
           content?: string
@@ -97,11 +101,13 @@ export type Database = {
           id?: string
           parent_id?: string | null
           project_id?: string | null
+          resolved_at?: string | null
+          selector?: string
           updated_at?: string | null
           url?: string
           user_id?: string | null
-          x_position?: number
-          y_position?: number
+          x_percent?: number
+          y_percent?: number
         }
         Relationships: [
           {
@@ -224,7 +230,7 @@ export type Database = {
           logo_updated_at: string | null
           logo_url: string | null
           name: string
-          slug: string
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
@@ -233,7 +239,7 @@ export type Database = {
           logo_updated_at?: string | null
           logo_url?: string | null
           name: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -242,7 +248,7 @@ export type Database = {
           logo_updated_at?: string | null
           logo_url?: string | null
           name?: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -296,7 +302,7 @@ export type Database = {
           id: string
           name: string
           organization_id: string
-          slug: string
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
@@ -305,7 +311,7 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -314,7 +320,7 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: [

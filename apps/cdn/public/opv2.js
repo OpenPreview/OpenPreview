@@ -13,14 +13,21 @@ try {
       isSelectingCommentLocation: false,
       commentsVisible: true,
       settingsPopover: null,
-      menuPopover: null,
       addCommentPopover: null,
-      allowedDomains: ['https://openpreview.dev'], // Add allowed domains
+      allowedDomains: ['http://localhost:3000'], // Add allowed domains
+      token: null,
+      ws: null,
       //#endregion
       isPreviewDomain: function (origin) {
+        // Check Localhost for Development
+        if (origin.includes('localhost')) {
+          return true;
+        }
+        const strippedOrigin = origin.replace(/^(https?:\/\/)/, '');
         const allowedDomain = this.allowedDomains.find(domain => {
-          const regex = new RegExp(`^https://[\\w-]+\\.${domain.replace(/^https:\/\//, '')}$`);
-          return regex.test(origin);
+          const strippedDomain = domain.replace(/^(https?:\/\/)/, '');
+          const regex = new RegExp(`^[\\w-]+\\.${strippedDomain}$`);
+          return regex.test(strippedOrigin);
         });
         return !!allowedDomain;
       },
@@ -43,20 +50,25 @@ try {
         }
         console.log('Origin allowed');
 
-        const initializeComponents = () => {
-          this.createToolbar();
-          this.createCommentForm();
-          this.createCommentsList();
-          this.loadTestData();
-          this.updateEyeIcon(); // Move this here, after toolbar creation
-        };
+        // Verify the token first
+        this.verifyToken().then(isValid => {
+          if (isValid) {
+            console.log('Token verified successfully');
+            this.token = this.getCookie('opv_token');
+          } else {
+            console.log('Token verification failed or no token found');
+            this.token = null;
+          }
 
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initializeComponents);
-        } else {
-          initializeComponents();
-        }
+          // Initialize components after token verification
+          this.initializeComponents();
 
+          // Load comments and initialize WebSocket
+          this.loadComments();
+          this.initWebSocket();
+        });
+
+        // Set up event listeners
         this.setupEventListeners();
 
         // Periodically update comment positions
@@ -89,7 +101,494 @@ try {
         this.startAddingComment = this.startAddingComment.bind(this);
         this.showCommentForm = this.showCommentForm.bind(this);
       },
+
+      initializeComponents: function() {
+        this.createToolbar();
+        this.createCommentForm();
+        this.createCommentsList();
+        this.updateEyeIcon();
+        this.updateLoginState();
+      },
       //#endregion
+
+      login: async function() {
+        const width = 500;
+        const height = 600;
+        const left = (window.screen.width / 2) - (width / 2);
+        const top = (window.screen.height / 2) - (height / 2);
+        
+        const loginWindow = window.open(
+          'http://localhost:3002/auth/login',
+          'OpenPreview Login',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+      
+        return new Promise((resolve, reject) => {
+          const handleMessage = (event) => {
+            if (event.origin !== 'http://localhost:3002') return;
+      
+            if (event.data.type === 'LOGIN_SUCCESS') {
+              this.token = event.data.token;
+              this.setCookie('opv_token', this.token, 7); // Save for 7 days
+              this.onLoginSuccess();
+              loginWindow.close();
+              window.removeEventListener('message', handleMessage);
+              resolve(event.data);
+            }
+          };
+      
+          window.addEventListener('message', handleMessage);
+      
+          loginWindow.onclose = () => {
+            window.removeEventListener('message', handleMessage);
+            reject(new Error('Login window closed'));
+          };
+        });
+      },
+
+      onLoginSuccess: function() {
+        console.log('Login successful');
+        this.showNotification('Logged in successfully!');
+        // Update UI or perform actions after successful login
+        this.updateLoginState();
+        this.loadComments();
+      },
+    
+      updateLoginState: function() {
+        if (this.token) {
+          this.loginButton.style.display = 'none';
+          if (this.settingsPopover) {
+            const logoutButton = this.settingsPopover.querySelector('button:contains("Logout")');
+            if (logoutButton) logoutButton.style.display = 'block';
+          }
+        } else {
+          this.loginButton.style.display = 'block';
+          if (this.settingsPopover) {
+            const logoutButton = this.settingsPopover.querySelector('button:contains("Logout")');
+            if (logoutButton) logoutButton.style.display = 'none';
+          }
+        }
+      },
+    
+      logout: function() {
+        this.token = null;
+        // Remove the token cookie
+        this.setCookie('opv_token', '', -1); // Expire the cookie
+        this.showNotification('Logged out successfully!');
+        this.updateLoginState();
+        this.comments = []; // Clear comments
+        this.renderComments(); // Re-render (clear) comments
+        this.togglePopover(this.settingsPopover); // Close settings popover
+      },
+
+      // Add this new helper function to set cookies
+      setCookie: function(name, value, days) {
+        let expires = "";
+        if (days) {
+          const date = new Date();
+          date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+          expires = "; expires=" + date.toUTCString();
+        }
+        document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+      },
+
+      // Add this new helper function to get cookies
+      getCookie: function(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for(let i = 0; i < ca.length; i++) {
+          let c = ca[i];
+          while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+          if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+      },
+
+      loadComments: async function () {
+        console.log('Loading comments...');
+        const token = this.token || this.getCookie('opv_token');
+
+        if (!token) {
+          console.log('No token available, please log in');
+          return;
+        }
+
+        try {
+          const res = await fetch(`http://localhost:3003/comments`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'X-Project-ID': this.clientId,
+              'X-Domain': window.location.origin,
+            }
+          });
+
+          if (!res.ok) {
+            if (res.status === 401) {
+              this.showNotification('Session expired. Please log in again.');
+              this.logout();
+              return;
+            }
+            throw new Error('Failed to fetch comments');
+          }
+
+          const comments = await res.json();
+          console.log('Fetched comments:', comments);
+          this.comments = comments;
+
+          if (comments.length === 0) {
+            console.log('No comments found for this URL');
+          } else {
+            this.renderComments();
+          }
+        } catch (error) {
+          console.error('Error loading comments:', error);
+          this.showNotification('Failed to load comments. Please try again.');
+        }
+      },
+
+      initWebSocket: function () {
+        const token = this.token || this.getCookie('opv_token');
+        this.ws = new WebSocket(`ws://localhost:3003?token=${token}`);
+
+        this.ws.onopen = () => {
+          console.log('WebSocket connected');
+          this.ws.send(JSON.stringify({
+            type: 'join',
+            projectId: this.clientId,
+            url: window.location.href
+          }));
+        };
+    
+        this.ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          if (data.type === 'newComment') {
+            console.log('Received new comment:', data.comment);
+            this.comments.push(data.comment);
+            this.renderComment(data.comment);
+            this.updateCommentsList();
+          } else if (data.type === 'error') {
+            console.error('WebSocket error:', data.message);
+            this.showNotification(data.message, 'error');
+          }
+        };
+    
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+    
+        this.ws.onclose = () => {
+          console.log('WebSocket disconnected');
+          // Implement reconnection logic here if needed
+        };
+      },
+
+      verifyToken: async function() {
+        const token = this.token || this.getCookie('opv_token');
+       
+        if (!token) {
+          console.log('No token found');
+          return false;
+        }
+
+        try {
+          const response = await fetch('http://localhost:3003/auth/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+          });
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              // Token is invalid or expired, clear it and return false
+              this.token = null;
+              this.setCookie('opv_token', '', -1);
+              return false;
+            }
+            throw new Error('Token verification failed');
+          }
+
+          const data = await response.json();
+          if (data.valid) {
+            this.user = data.user;
+            return true;
+          } else {
+            return false;
+          }
+        } catch (error) {
+          console.error('Error verifying token:', error);
+          return false;
+        }
+      },
+
+      renderComments: function () {
+        console.log('Rendering all comments:', this.comments);
+        // Clear existing comment markers and details
+        document.querySelectorAll('.opv-comment-marker, .opv-comment-details').forEach(el => el.remove());
+        
+        this.comments.forEach(comment => {
+          console.log('Rendering comment:', comment);
+          this.renderComment(comment);
+        });
+        this.updateCommentsList();
+      },
+
+      renderComment: function (comment) {
+        console.log('Rendering individual comment:', comment);
+        let targetElement = this.findTargetElement(comment.selector);
+        const webPath = window.location.pathname;
+        const commentPath = new URL(comment.url).pathname;
+      
+        console.log('commentPath', commentPath, 'webPath', webPath, 'isEqual', commentPath === webPath);
+        
+        if (webPath !== commentPath) {
+          console.log('Comment path does not match current page, skipping render');
+          return null;
+        }
+        if (!targetElement) {
+          console.warn('Target element not found for comment:', comment);
+          targetElement = document.body; // Fallback to body if element not found
+        }
+      
+        const updatePosition = () => {
+          const rect = targetElement.getBoundingClientRect();
+          const x = rect.left + (rect.width * comment.x_percent) / 100;
+          const y = rect.top + (rect.height * comment.y_percent) / 100;
+      
+          marker.style.left = `${x}px`;
+          marker.style.top = `${y}px`;
+      
+          if (detailsBox) {
+            detailsBox.style.left = `${x + 40}px`;
+            detailsBox.style.top = `${y}px`;
+          }
+
+        };
+      
+        const marker = document.createElement('div');
+        marker.classList.add('opv-comment-marker');
+        marker.dataset.commentId = comment.id;
+        marker.style.cssText = `
+          position: fixed;
+          width: 32px;
+          height: 32px;
+          background-color: ${comment.resolved_at ? '#4CAF50' : '#1DA1F2'};
+          border-radius: 20% 100% 100% 100%;
+          cursor: pointer;
+          z-index: 2147483647;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 16px;
+          box-shadow: 0 2px 10px rgba(29, 161, 242, 0.3);
+          transition: none;
+          user-select: none;
+        `;
+      
+        marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+      
+        const detailsBox = document.createElement('div');
+        detailsBox.classList.add('opv-comment-details');
+        detailsBox.dataset.commentId = comment.id;
+        detailsBox.style.cssText = `
+          position: fixed;
+          width: 300px;
+          background-color: white;
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          z-index: 2147483644;
+          display: none;
+          max-height: 400px;
+          overflow-y: auto;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        `;
+      
+        // Add comment content
+        const commentContent = document.createElement('div');
+        commentContent.innerHTML = `
+          <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <img src="${comment.user?.avatar_url || 'https://i.pravatar.cc/150?img=8'}" alt="${comment.user?.name || 'Anonymous'}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
+            <div>
+              <div style="font-weight: bold;">${comment.user?.name || 'Anonymous'}</div>
+              <div style="font-size: 0.8em; color: #666;">${new Date(comment.created_at).toLocaleString()}</div>
+            </div>
+          </div>
+          <div class="comment-content" style="margin-bottom: 15px;">${comment.content}</div>
+        `;
+        detailsBox.appendChild(commentContent);
+      
+        // Add replies section
+        if (comment.replies && comment.replies.length > 0) {
+          const repliesContainer = document.createElement('div');
+          repliesContainer.classList.add('replies-container');
+          repliesContainer.style.cssText = `
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+          `;
+          comment.replies.forEach(reply => {
+            const replyElement = this.createReplyElement(reply);
+            repliesContainer.appendChild(replyElement);
+          });
+          detailsBox.appendChild(repliesContainer);
+        }
+      
+        // Add reply form
+        const replyForm = this.createReplyForm(comment.id);
+        detailsBox.appendChild(replyForm);
+      
+        document.body.appendChild(marker);
+        document.body.appendChild(detailsBox);
+      
+        updatePosition();
+      
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition);
+      
+        // Update position periodically to handle dynamic content changes
+        setInterval(updatePosition, 1000);
+      
+        this.makeCommentDraggable(marker, detailsBox, comment, updatePosition);
+      
+        marker.addEventListener('click', () => this.showCommentDetails(comment.id));
+      },
+
+      createReplyForm: function (commentId) {
+        const replyForm = document.createElement('div');
+        replyForm.classList.add('reply-form');
+        replyForm.style.cssText = `
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 1px solid #eee;
+        `;
+
+        const textarea = document.createElement('textarea');
+        textarea.style.cssText = `
+          width: 100%;
+          height: 60px;
+          margin-bottom: 8px;
+          padding: 8px;
+          border: 1px solid #E1E8ED;
+          border-radius: 8px;
+          font-size: 14px;
+          resize: none;
+        `;
+
+        const submitBtn = document.createElement('button');
+        submitBtn.textContent = 'Reply';
+        submitBtn.style.cssText = `
+          background-color: #1DA1F2;
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 9999px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+        `;
+
+        submitBtn.addEventListener('click', () => {
+          const replyContent = textarea.value.trim();
+          if (replyContent) {
+            this.addReply(commentId, replyContent);
+            textarea.value = '';
+          }
+        });
+
+        replyForm.appendChild(textarea);
+        replyForm.appendChild(submitBtn);
+
+        return replyForm;
+      },
+
+      addReply: function (commentId, replyContent) {
+        const comment = this.comments.find(c => c.id === commentId);
+        if (comment) {
+          const reply = {
+            id: Date.now().toString(), // Temporary ID, should be replaced by server-generated ID
+            content: replyContent,
+            user: this.user, // Assuming we have a this.user object with current user info
+            created_at: new Date().toISOString(),
+          };
+
+          // Send the reply to the server
+          this.ws.send(JSON.stringify({
+            type: 'newReply',
+            projectId: this.clientId,
+            commentId: commentId,
+            reply: reply,
+            token: this.token
+          }));
+
+          // Optimistically add the reply locally
+          if (!comment.replies) {
+            comment.replies = [];
+          }
+          comment.replies.push(reply);
+
+          this.updateCommentDetails(comment);
+          this.updateCommentsList();
+          this.showNotification('Reply added successfully!');
+        }
+      },
+
+      updateCommentDetails: function (comment) {
+        const detailsBox = document.querySelector(
+          `.opv-comment-details[data-comment-id="${comment.id}"]`,
+        );
+        if (detailsBox) {
+          // Update replies section
+          let repliesContainer = detailsBox.querySelector('.replies-container');
+          if (!repliesContainer) {
+            repliesContainer = document.createElement('div');
+            repliesContainer.classList.add('replies-container');
+            repliesContainer.style.cssText = `
+              margin-top: 15px;
+              padding-top: 15px;
+              border-top: 1px solid #eee;
+            `;
+            detailsBox.insertBefore(
+              repliesContainer,
+              detailsBox.querySelector('.reply-form'),
+            );
+          }
+
+          // Clear existing replies
+          repliesContainer.innerHTML = '';
+
+          // Add updated replies
+          comment.replies.forEach(reply => {
+            const replyElement = this.createReplyElement(reply);
+            repliesContainer.appendChild(replyElement);
+          });
+        }
+      },
+
+      createReplyElement: function (reply) {
+        const replyElement = document.createElement('div');
+        replyElement.style.cssText = `
+          margin-bottom: 10px;
+          padding-left: 20px;
+          border-left: 2px solid #E1E8ED;
+        `;
+
+        replyElement.innerHTML = `
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <img src="${reply.user.avatar_url || 'https://i.pravatar.cc/150?img=8'}" alt="${reply.user.name}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;">
+            <div>
+              <div style="font-weight: bold; font-size: 14px;">${reply.user.name}</div>
+              <div style="font-size: 12px; color: #657786;">${new Date(reply.created_at).toLocaleString()}</div>
+            </div>
+          </div>
+          <div style="font-size: 14px;">${reply.content}</div>
+        `;
+
+        return replyElement;
+      },
 
       //#region Supporting Func
       handleResize: function () {
@@ -156,8 +655,11 @@ try {
         const rightGroup = this.createToolbarGroup([
           { icon: 'eye', title: 'Preview' },
           { icon: 'settings', title: 'Settings' },
-          // { icon: 'drag', title: 'Drag' },
         ]);
+
+        // Add login button
+        this.loginButton = this.createLoginButton();
+        rightGroup.insertBefore(this.loginButton, rightGroup.firstChild);
 
         this.toolbar.appendChild(leftGroup);
         this.toolbar.appendChild(rightGroup);
@@ -261,7 +763,7 @@ try {
             '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>',
           eye: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
           settings:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2 2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2 2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1 2 2h-.09a1.65 1.65 0 0 0 1.51 1z"></path></svg>',
           drag: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>',
         };
         return icons[icon] || '';
@@ -291,6 +793,24 @@ try {
           btn.style.opacity = '0.9 !important';
         });
         return btn;
+      },
+      
+      createLoginButton: function() {
+        const loginButton = document.createElement('button');
+        loginButton.textContent = 'Login';
+        loginButton.style.cssText = `
+          background-color: #1DA1F2;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 9999px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+          margin-right: 8px;
+        `;
+        loginButton.addEventListener('click', () => this.login());
+        return loginButton;
       },
 
       createCommentForm: function () {
@@ -445,6 +965,7 @@ try {
         console.log('Popover display after toggle:', popover.style.display);
       },
       
+      
       // Update the showSettings function to use togglePopover
       showSettings: function () {
         console.log('showSettings called');
@@ -453,6 +974,9 @@ try {
         }
         this.togglePopover(this.settingsPopover);
       },
+      
+      
+      
       
       // Update the toggleMenu function to use togglePopover
       toggleMenu: function () {
@@ -465,9 +989,6 @@ try {
         document.addEventListener('DOMContentLoaded', () => {
           const addCommentBtn = this.toolbar.querySelector('button');
           addCommentBtn.addEventListener('click', () => this.showCommentForm());
-
-          const submitBtn = this.commentForm.querySelector('button');
-          submitBtn.addEventListener('click', () => this.addComment());
 
           const cancelBtn = this.commentForm.querySelectorAll('button')[1];
           cancelBtn.addEventListener('click', () => this.hideCommentForm());
@@ -513,84 +1034,175 @@ try {
       },
 
       addComment: function () {
+        console.log('addComment called');
         const textarea = this.commentForm.querySelector('textarea');
         const commentText = textarea.value.trim();
         if (!commentText) return;
-
+    
         const targetElement = this.getTargetElement();
         if (!targetElement) {
-          console.error('Unable to find target element for comment');
-          return;
+            console.error('Unable to find target element for comment');
+            return;
         }
-
-        const { selector, xPercent, yPercent } =
-          this.calculateRelativePosition(targetElement);
-
+    
+        const { selector, x_percent, y_percent } = this.calculateRelativePosition(targetElement);
+        
         const comment = {
-          id: Date.now().toString(),
-          content: commentText,
-          selector: selector,
-          xPercent: xPercent,
-          yPercent: yPercent,
-          url: window.location.href,
-          user: {
-            name: 'John Doe',
-            avatar: 'https://i.pravatar.cc/150?img=8',
-          },
-          timestamp: new Date().toISOString(),
-          replies: [],
-          color: '#1DA1F2', // Default color
+            content: commentText,
+            selector: selector,
+            x_percent: x_percent,
+            y_percent: y_percent,
+            url: window.location.href,
         };
-
+  
         console.log('Comment object to be sent to server:', comment);
-
-        this.comments.push(comment);
-        this.renderComment(comment);
+        console.log('this.ws', this.ws);
+        this.ws.send(JSON.stringify({
+            type: 'newComment',
+            projectId: this.clientId,
+            url: window.location.href,
+            comment: comment,
+            token: this.token
+        }));
+    
         this.hideCommentForm();
         textarea.value = '';
-        this.updateCommentsList();
         this.showNotification('Comment added successfully!');
       },
 
-      calculateRelativePosition: function (element) {
+      getUniqueSelector: function (element) {
+        const path = this.getElementPath(element);
+        const uniqueAttributes = this.getUniqueAttributes(element);
+        return JSON.stringify({ path, attributes: uniqueAttributes });
+      },
+      getElementPath: function (element) {
+        const path = [];
+        while (element && element.nodeType === Node.ELEMENT_NODE) {
+          let selector = element.tagName.toLowerCase();
+          let nth = 1;
+          let sibling = element;
+          while (sibling = sibling.previousElementSibling) {
+            if (sibling.tagName === element.tagName) nth++;
+          }
+          if (nth !== 1) selector += `:nth-of-type(${nth})`;
+          path.unshift(selector);
+          element = element.parentNode;
+        }
+        return path.join(' > ');
+      },
+      
+      getUniqueAttributes: function (element) {
+        const attributes = {};
+        const uniqueAttrs = ['id', 'name', 'data-testid', 'aria-label'];
+        uniqueAttrs.forEach(attr => {
+          if (element.getAttribute(attr)) {
+            attributes[attr] = element.getAttribute(attr);
+          }
+        });
+        return attributes;
+      },
+      
+      findTargetElement: function (selector) {
+        if (!selector) {
+          console.warn('No selector provided for findTargetElement');
+          return document.body;
+        }
+      
+        try {
+          const { path, attributes } = JSON.parse(selector);
+          let elements = document.querySelectorAll(path);
+          
+          if (elements.length === 1) {
+            return elements[0];
+          }
+      
+          // If multiple elements match the path, use attributes to narrow it down
+          for (let element of elements) {
+            if (this.matchAttributes(element, attributes)) {
+              return element;
+            }
+          }
+      
+          // If no exact match, return the first element that matches the path
+          return elements[0] || document.body;
+        } catch (error) {
+          console.error('Error parsing selector:', error);
+          return document.body;
+        }
+      },
+      
+      matchAttributes: function (element, attributes) {
+        for (let key in attributes) {
+          if (element.getAttribute(key) !== attributes[key]) {
+            return false;
+          }
+        }
+        return true;
+      },
+      
+      calculateRelativePosition: function (element, x, y) {
         const rect = element.getBoundingClientRect();
-        const x = parseFloat(this.commentForm.dataset.x);
-        const y = parseFloat(this.commentForm.dataset.y);
-
-        const xPercent = ((x - rect.left) / rect.width) * 100;
-        const yPercent = ((y - rect.top) / rect.height) * 100;
-
+        const x_percent = ((x - rect.left) / rect.width) * 100;
+        const y_percent = ((y - rect.top) / rect.height) * 100;
+      
         return {
           selector: this.getUniqueSelector(element),
-          xPercent: xPercent,
-          yPercent: yPercent,
+          x_percent: x_percent,
+          y_percent: y_percent,
+        };
+      },
+     
+      
+      
+      
+    
+      verifyElementAttributes: function (element, attributes) {
+        for (let key in attributes) {
+          if (key === 'tagName' && element.tagName.toLowerCase() !== attributes[key]) {
+            return false;
+          }
+          if (key === 'classes') {
+            const elementClasses = Array.from(element.classList).join(' ');
+            if (elementClasses !== attributes[key]) {
+              return false;
+            }
+          } else if (element.getAttribute(key) !== attributes[key]) {
+            return false;
+          }
+        }
+        return true;
+      },
+      
+      findElementByAttributes: function (attributes) {
+        const elements = document.getElementsByTagName(attributes.tagName);
+        for (let element of elements) {
+          if (this.verifyElementAttributes(element, attributes)) {
+            return element;
+          }
+        }
+        return null;
+      },
+      
+      calculateRelativePosition: function (element, x, y) {
+        const rect = element.getBoundingClientRect();
+        const x_percent = ((x - rect.left) / rect.width) * 100;
+        const y_percent = ((y - rect.top) / rect.height) * 100;
+      
+        return {
+          selector: this.getUniqueSelector(element),
+          x_percent: x_percent,
+          y_percent: y_percent,
         };
       },
 
-      getUniqueSelector: function (element) {
-        if (element.id) {
-          return `#${element.id}`;
-        }
-        if (element.className) {
-          const classes = element.className
-            .split(' ')
-            .filter(c => c.trim() !== '');
-          if (classes.length > 0) {
-            return `.${classes.join('.')}`;
-          }
-        }
-
-        const tag = element.tagName.toLowerCase();
-        if (tag === 'body' || tag === 'html') {
-          return tag;
-        }
-
-        const parent = element.parentNode;
-        const siblings = parent.children;
-        const index = Array.from(siblings).indexOf(element) + 1;
-
-        return `${this.getUniqueSelector(parent)} > ${tag}:nth-child(${index})`;
+      renderComments: function () {
+        this.comments.forEach(comment => {
+          this.renderComment(comment);
+        });
+        this.updateCommentsList();
       },
+
+      
 
       getTargetElement: function () {
         const x = parseFloat(this.commentForm.dataset.x);
@@ -598,190 +1210,7 @@ try {
         return document.elementFromPoint(x, y);
       },
 
-      renderComment: function (comment) {
-        console.log('Rendering comment:', comment);
-        let targetElement = this.findTargetElement(comment.selector);
-        const webPath = window.location.pathname;
-        const commentPath = new URL(comment.url).pathname;
-
-        console.log(
-          'commentPath',
-          commentPath,
-          'webPath',
-          webPath,
-          'isEqual',
-          commentPath === webPath,
-        );
-
-        if (webPath !== commentPath) {
-          console.log('Comment path matches current page');
-          return null;
-        }
-        if (!targetElement) {
-          console.warn('Target element not found for comment:', comment);
-          targetElement = document.body; // Fallback to body if element not found
-        }
-
-        const updatePosition = () => {
-          const rect = targetElement.getBoundingClientRect();
-          const x = rect.left + (rect.width * comment.xPercent) / 100;
-          const y = rect.top + (rect.height * comment.yPercent) / 100;
-
-          marker.style.left = `${x}px`;
-          marker.style.top = `${y}px`;
-
-          if (detailsBox) {
-            detailsBox.style.left = `${x + 40}px`;
-            detailsBox.style.top = `${y}px`;
-          }
-        };
-
-        const marker = document.createElement('div');
-        marker.classList.add('opv-comment-marker');
-        marker.dataset.commentId = comment.id;
-        marker.style.cssText = `
-          position: fixed;
-          width: 32px;
-          height: 32px;
-          background-color: ${comment.color || '#1DA1F2'};
-          border-radius: 20% 100% 100% 100%;
-          cursor: pointer;
-          z-index: 2147483647;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 16px;
-          box-shadow: 0 2px 10px rgba(29, 161, 242, 0.3);
-          transition: none;
-          user-select: none;
-        `;
-
-        marker.innerHTML =
-          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
-
-        marker.style.cssText += `
-          @media (max-width: 768px) {
-            width: 24px;
-            height: 24px;
-            font-size: 12px;
-          }
-        `;
-
-        const detailsBox = document.createElement('div');
-        detailsBox.classList.add('opv-comment-details');
-        detailsBox.dataset.commentId = comment.id;
-        detailsBox.style.cssText = `
-          position: fixed;
-          width: 300px;
-          background-color: white;
-          border-radius: 12px;
-          padding: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          z-index: 2147483644;
-          display: none;
-          max-height: 400px;
-          overflow-y: auto;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        `;
-
-        detailsBox.style.cssText += `
-          @media (max-width: 768px) {
-            width: 90%;
-            max-width: 300px;
-            left: 50% !important;
-            transform: translateX(-50%);
-            max-height: 80vh;
-          }
-        `;
-
-        // Add comment content
-        const commentContent = document.createElement('div');
-        commentContent.innerHTML = `
-          <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            <img src="${comment.user.avatar}" alt="${comment.user.name}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-            <div>
-              <div style="font-weight: bold;">${comment.user.name}</div>
-              <div style="font-size: 0.8em; color: #666;">${new Date(comment.timestamp).toLocaleString()}</div>
-            </div>
-          </div>
-          <div class="comment-content" style="margin-bottom: 15px;">${comment.content}</div>
-        `;
-        detailsBox.appendChild(commentContent);
-
-        // Add replies
-        if (comment.replies && comment.replies.length > 0) {
-          const repliesContainer = document.createElement('div');
-          repliesContainer.style.cssText = `
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-          `;
-          comment.replies.forEach(reply => {
-            const replyElement = document.createElement('div');
-            replyElement.style.marginBottom = '10px';
-            replyElement.innerHTML = `
-              <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                <img src="${reply.user.avatar}" alt="${reply.user.name}" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
-                <div>
-                  <div style="font-weight: bold;">${reply.user.name}</div>
-                  <div style="font-size: 0.8em; color: #666;">${new Date(reply.timestamp).toLocaleString()}</div>
-                </div>
-              </div>
-              <div style="margin-left: 40px;">${reply.content}</div>
-            `;
-            repliesContainer.appendChild(replyElement);
-          });
-          detailsBox.appendChild(repliesContainer);
-        }
-
-        // Add reply form
-        const replyForm = document.createElement('div');
-        replyForm.classList.add('reply-form');
-        replyForm.style.cssText = `
-          margin-top: 15px;
-          padding-top: 15px;
-          border-top: 1px solid #eee;
-        `;
-        replyForm.innerHTML = `
-          <textarea style="width: 100%; height: 60px; margin-bottom: 10px; padding: 5px; border: 1px solid #e1e4e8; border-radius: 4px;"></textarea>
-          <button style="padding: 5px 10px; background-color: #1DA1F2; color: white; border: none; border-radius: 4px; cursor: pointer;">Reply</button>
-        `;
-        replyForm.querySelector('button').addEventListener('click', () => {
-          const replyContent = replyForm.querySelector('textarea').value.trim();
-          if (replyContent) {
-            this.addReply(comment.id, replyContent);
-            replyForm.querySelector('textarea').value = '';
-          }
-        });
-        detailsBox.appendChild(replyForm);
-
-        // Add color picker
-        const colorPicker = document.createElement('input');
-        colorPicker.type = 'color';
-        colorPicker.value = comment.color || '#1DA1F2';
-        colorPicker.style.marginTop = '10px';
-        colorPicker.addEventListener('change', e => {
-          const newColor = e.target.value;
-          comment.color = newColor;
-          marker.style.backgroundColor = newColor;
-          this.updateCommentsList();
-        });
-        detailsBox.appendChild(colorPicker);
-
-        document.body.appendChild(marker);
-        document.body.appendChild(detailsBox);
-
-        updatePosition();
-
-        window.addEventListener('resize', updatePosition);
-        window.addEventListener('scroll', updatePosition);
-
-        // Update position periodically to handle dynamic content changes
-        setInterval(updatePosition, 1000);
-
-        this.makeCommentDraggable(marker, detailsBox, comment, updatePosition);
-      },
+      
 
       showCommentDetails: function (commentId) {
         const detailsBox = document.querySelector(
@@ -803,88 +1232,94 @@ try {
         }
       },
 
-      makeCommentDraggable: function (
-        marker,
-        detailsBox,
-        comment,
-        updatePosition,
-      ) {
+      makeCommentDraggable: function (marker, detailsBox, comment, updatePosition) {
         let isDragging = false;
         let startX, startY;
-        let moveThreshold = 5; // pixels
-        let hasMovedBeyondThreshold = false;
-        let clickStartTime;
-
-        const onMove = e => {
-          const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-          const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-
-          if (!isDragging) return;
-
-          const dx = clientX - startX;
-          const dy = clientY - startY;
-
-          if (!hasMovedBeyondThreshold) {
-            if (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold) {
-              hasMovedBeyondThreshold = true;
-            } else {
-              return;
-            }
-          }
-
-          const targetElement = document.querySelector(comment.selector);
-          const rect = targetElement.getBoundingClientRect();
-
-          comment.xPercent = ((clientX - rect.left) / rect.width) * 100;
-          comment.yPercent = ((clientY - rect.top) / rect.height) * 100;
-
-          updatePosition();
-
-          startX = clientX;
-          startY = clientY;
-        };
-
-        const onEnd = e => {
-          const endTime = new Date().getTime();
-          const clickDuration = endTime - clickStartTime;
-
-          if (!hasMovedBeyondThreshold && clickDuration < 200) {
-            // If it hasn't moved beyond the threshold and the click duration is short, treat it as a click
-            this.showCommentDetails(comment.id);
-          }
-
-          isDragging = false;
-          hasMovedBeyondThreshold = false;
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('touchmove', onMove);
-          document.removeEventListener('mouseup', onEnd);
-          document.removeEventListener('touchend', onEnd);
-          marker.style.cursor = 'pointer';
-        };
-
-        const onStart = e => {
-          e.preventDefault(); // Prevent text selection and default touch behaviors
+        let originalX, originalY;
+      
+        const onMouseDown = (e) => {
+          e.preventDefault();
           isDragging = true;
-          hasMovedBeyondThreshold = false;
-          clickStartTime = new Date().getTime();
-          startX = e.clientX || (e.touches && e.touches[0].clientX);
-          startY = e.clientY || (e.touches && e.touches[0].clientY);
-          marker.style.cursor = 'grabbing';
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('touchmove', onMove, { passive: false });
-          document.addEventListener('mouseup', onEnd);
-          document.addEventListener('touchend', onEnd);
+          startX = e.clientX;
+          startY = e.clientY;
+          originalX = parseFloat(marker.style.left);
+          originalY = parseFloat(marker.style.top);
+          
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
         };
-
-        marker.addEventListener('mousedown', onStart);
-        marker.addEventListener('touchstart', onStart);
-
-        // Add a separate click event listener
-        marker.addEventListener('click', e => {
-          if (!hasMovedBeyondThreshold) {
-            this.showCommentDetails(comment.id);
+      
+        const onMouseMove = (e) => {
+          if (!isDragging) return;
+          
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          
+          const newX = originalX + dx;
+          const newY = originalY + dy;
+          
+          marker.style.left = `${newX}px`;
+          marker.style.top = `${newY}px`;
+          
+          if (detailsBox) {
+            detailsBox.style.left = `${newX + 40}px`;
+            detailsBox.style.top = `${newY}px`;
+          }
+        };
+      
+        const onMouseUp = () => {
+          isDragging = false;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          
+          const targetElement = document.elementFromPoint(
+            parseFloat(marker.style.left),
+            parseFloat(marker.style.top)
+          );
+          if (targetElement) {
+            const rect = targetElement.getBoundingClientRect();
+            const newXPercent = ((parseFloat(marker.style.left) - rect.left) / rect.width) * 100;
+            const newYPercent = ((parseFloat(marker.style.top) - rect.top) / rect.height) * 100;
+            
+            // Update the comment object
+            comment.x_percent = newXPercent;
+            comment.y_percent = newYPercent;
+            comment.selector = this.getUniqueSelector(targetElement);
+            
+            // Send the updated comment to the server via WebSocket
+            this.ws.send(JSON.stringify({
+              type: 'updateComment',
+              projectId: this.clientId,
+              url: window.location.href,
+              comment: {
+                id: comment.id,
+                x_percent: newXPercent,
+                y_percent: newYPercent,
+                selector: comment.selector
+              },
+              token: this.token
+            }));
+            
+            updatePosition();
+          }
+        };
+      
+        marker.addEventListener('mousedown', onMouseDown);
+      
+        // Add touch event support
+        marker.addEventListener('touchstart', (e) => {
+          const touch = e.touches[0];
+          onMouseDown({ preventDefault: () => {}, clientX: touch.clientX, clientY: touch.clientY });
+        });
+      
+        document.addEventListener('touchmove', (e) => {
+          if (isDragging) {
+            const touch = e.touches[0];
+            onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
           }
         });
+      
+        document.addEventListener('touchend', onMouseUp);
       },
 
       showNotification: function (message) {
@@ -992,40 +1427,53 @@ try {
         });
         commentElement.addEventListener('click', () => {
           const marker = document.querySelector(
-            `.opv-comment-marker[data-comment-id="${comment.id}"]`,
+            `.opv-comment-marker[data-comment-id="${comment.id}"]`
           );
           if (marker) {
+            // Scroll to the marker
             marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Highlight the marker temporarily
+            const originalColor = marker.style.backgroundColor;
+            marker.style.backgroundColor = '#FFD700'; // Bright yellow
+            setTimeout(() => {
+              marker.style.backgroundColor = originalColor;
+            }, 1500); // Reset after 1.5 seconds
+            
+            // Show comment details
             this.showCommentDetails(comment.id);
           }
+          
+          // Close the comments list
+          this.toggleCommentsList();
         });
-
+      
         const userInfo = document.createElement('div');
         userInfo.style.cssText = `
           display: flex;
           align-items: center;
           margin-bottom: 8px;
         `;
-
+      
         const avatar = document.createElement('img');
-        avatar.src = comment.user.avatar;
+        avatar.src = comment.user.avatar_url;
         avatar.style.cssText = `
           width: 24px;
           height: 24px;
           border-radius: 50%;
           margin-right: 8px;
         `;
-
+      
         const userName = document.createElement('span');
         userName.textContent = comment.user.name;
         userName.style.cssText = `
           font-weight: bold;
           font-size: 14px;
         `;
-
+      
         userInfo.appendChild(avatar);
         userInfo.appendChild(userName);
-
+      
         const content = document.createElement('div');
         content.textContent = comment.content;
         content.style.cssText = `
@@ -1033,19 +1481,19 @@ try {
           line-height: 1.4;
           margin-bottom: 8px;
         `;
-
+      
         const timestamp = document.createElement('div');
-        timestamp.textContent = new Date(comment.timestamp).toLocaleString();
+        timestamp.textContent = new Date(comment.created_at).toLocaleString();
         timestamp.style.cssText = `
           font-size: 12px;
           color: #657786;
           margin-bottom: 8px;
         `;
-
+      
         commentElement.appendChild(userInfo);
         commentElement.appendChild(content);
         commentElement.appendChild(timestamp);
-
+      
         // Add replies to the comment element
         if (comment.replies && comment.replies.length > 0) {
           const repliesContainer = document.createElement('div');
@@ -1054,15 +1502,15 @@ try {
             border-left: 2px solid #E1E8ED;
             padding-left: 12px;
           `;
-
+      
           comment.replies.forEach(reply => {
             const replyElement = this.createReplyElementForList(reply);
             repliesContainer.appendChild(replyElement);
           });
-
+      
           commentElement.appendChild(repliesContainer);
         }
-
+      
         return commentElement;
       },
 
@@ -1093,7 +1541,7 @@ try {
         `;
 
         const avatar = document.createElement('img');
-        avatar.src = reply.user.avatar;
+        avatar.src = reply.user.avatar_url;
         avatar.style.cssText = `
           width: 32px;
           height: 32px;
@@ -1120,7 +1568,7 @@ try {
         `;
 
         const timestamp = document.createElement('div');
-        timestamp.textContent = new Date(reply.timestamp).toLocaleString();
+        timestamp.textContent = new Date(reply.created_at).toLocaleString();
         timestamp.style.cssText = `
           font-size: 12px;
           color: #657786;
@@ -1251,10 +1699,10 @@ try {
             replyElement.style.marginBottom = '10px';
             replyElement.innerHTML = `
               <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                <img src="${reply.user.avatar}" alt="${reply.user.name}" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
+                <img src="${reply.user.avatar_url}" alt="${reply.user.name}" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
                 <div>
                   <div style="font-weight: bold;">${reply.user.name}</div>
-                  <div style="font-size: 0.8em; color: #666;">${new Date(reply.timestamp).toLocaleString()}</div>
+                  <div style="font-size: 0.8em; color: #666;">${new Date(reply.created_at).toLocaleString()}</div>
                 </div>
               </div>
               <div style="margin-left: 40px;">${reply.content}</div>
@@ -1373,7 +1821,8 @@ try {
           },
           { label: 'My Profile', type: 'button' },
           { label: 'Help Center', type: 'button' },
-          { label: 'Logout', type: 'button' },
+           { label: 'Login', type: 'button', onClick: () => this.login() },
+      { label: 'Logout', type: 'button', onClick: () => this.logout() },
         ]);
       },
 
@@ -1498,6 +1947,9 @@ try {
             button.addEventListener('mouseout', () => {
               button.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
             });
+            if (item.onClick) {
+              button.addEventListener('click', item.onClick);
+            }
             itemElement.appendChild(button);
           } else if (item.type === 'message') {
             itemElement.textContent = item.label;
@@ -1549,108 +2001,35 @@ try {
         // Implement invite functionality
       },
 
-      // Add this new method
-      loadTestData: async function () {
-      
-        
-        this.comments = [
-          {
-            id: '1',
-            content:
-              'This is a test comment. It demonstrates how comments look in the system.',
-            selector: 'body',
-            xPercent: 10,
-            yPercent: 10,
-            url: 'https://12.openpreview.dev/test',
-            user: {
-              name: 'Alice Johnson',
-              avatar: 'https://i.pravatar.cc/150?img=1',
-            },
-            timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-            replies: [
-              {
-                id: '1-1',
-                content: 'This is a reply to the test comment.',
-                user: {
-                  name: 'Bob Smith',
-                  avatar: 'https://i.pravatar.cc/150?img=2',
-                },
-                timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 minutes ago
-              },
-            ],
-            resolved: false,
-          },
-          {
-            id: '2',
-            content:
-              "Here's another comment to show multiple comments on the page.",
-            selector: 'body',
-            xPercent: 30,
-            yPercent: 20,
-            url: 'https://12.openpreview.dev',
-            user: {
-              name: 'Charlie Brown',
-              avatar: 'https://i.pravatar.cc/150?img=3',
-            },
-            timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-            replies: [],
-            resolved: false,
-          },
-        ];
+      // // Add this new method
+      // loadTestData: async function () {
+      //   const token = this.token || localStorage.getItem('opv_token');
+      //   const res = await fetch('http://localhost:3003/comments',{
+      //     headers: {
+      //       'Authorization': `Bearer ${token}`
+      //     }
+      //   });
+      //   const comments = await res.json();
+      //   this.comments = comments;
 
-        console.log('Rendering test comments');
-        const allowedComments = this.comments.filter(comment => 
-        {
-          const commentUrl = new URL(comment.url);
-          console.log(commentUrl.origin, commentUrl.pathname);
-          return this.isPreviewDomain(commentUrl.origin) && this.isCurrentPathAllowed(commentUrl.pathname)
-        }
-        );
-        allowedComments.forEach(comment => {
-          this.renderComment(comment);
-        });
+      //   console.log(comments);
 
-        this.updateCommentsList();
-      },
+      //   console.log('Rendering test comments');
+      //   const allowedComments = this.comments.filter(comment => 
+      //   {
+      //     const commentUrl = new URL(comment.url);
+      //     console.log(commentUrl.origin, commentUrl.pathname);
+      //     return this.isPreviewDomain(commentUrl.origin) && this.isCurrentPathAllowed(commentUrl.pathname)
+      //   }
+      //   );
+      //   allowedComments.forEach(comment => {
+      //     this.renderComment(comment);
+      //   });
 
-      findTargetElement: function (selector) {
-        if (!selector) {
-          console.warn('No selector provided for findTargetElement');
-          return document.body; // Fallback to body if no selector is provided
-        }
+      //   this.updateCommentsList();
+      // },
 
-        // Try to find the element with the exact selector
-        let element = document.querySelector(selector);
-        if (element) return element;
-
-        // If not found, try a more lenient approach
-        const selectorParts = selector.split(' > ');
-        let currentSelector = '';
-        for (let i = selectorParts.length - 1; i >= 0; i--) {
-          currentSelector =
-            selectorParts[i] + (currentSelector ? ' > ' + currentSelector : '');
-          element = document.querySelector(currentSelector);
-          if (element) return element;
-        }
-
-        // If still not found, try finding by tag name or similar class
-        const lastPart = selectorParts[selectorParts.length - 1];
-        const tagMatch = lastPart.match(/^([a-z]+)/);
-        if (tagMatch) {
-          const elements = document.getElementsByTagName(tagMatch[1]);
-          if (elements.length > 0) return elements[0];
-        }
-
-        const classMatch = lastPart.match(/\.([^:]+)/);
-        if (classMatch) {
-          const className = classMatch[1].replace(/\./g, ' ');
-          const elements = document.getElementsByClassName(className);
-          if (elements.length > 0) return elements[0];
-        }
-
-        console.warn('No matching element found for selector:', selector);
-        return document.body; // Fallback to body if no matching element is found
-      },
+    
 
       updateCommentPosition: function (
         marker,
@@ -1659,8 +2038,8 @@ try {
         targetElement,
       ) {
         const rect = targetElement.getBoundingClientRect();
-        const x = rect.left + (rect.width * comment.xPercent) / 100;
-        const y = rect.top + (rect.height * comment.yPercent) / 100;
+        const x = rect.left + (rect.width * comment.x_percent) / 100;
+        const y = rect.top + (rect.height * comment.y_percent) / 100;
 
         marker.style.left = `${x}px`;
         marker.style.top = `${y}px`;
@@ -1668,10 +2047,28 @@ try {
         detailsBox.style.left = `${x + 40}px`;
         detailsBox.style.top = `${y}px`;
       },
+      // Add this new function
+      cancelAddingComment: function () {
+        console.log('Cancelling comment addition');
+        this.isSelectingCommentLocation = false;
+        document.body.style.cursor = 'default';
+        document.removeEventListener('click', this.handleCommentPlacement);
 
+        if (this.addCommentPopover) {
+          this.addCommentPopover.remove();
+          this.addCommentPopover = null;
+        }
+      },
       // Add this new method
       startAddingComment: function () {
         console.log('Starting to add a comment');
+        
+        // If already in comment adding mode, cancel it
+        if (this.isSelectingCommentLocation) {
+          this.cancelAddingComment();
+          return;
+        }
+      
         if (this.addCommentPopover) {
           this.addCommentPopover.remove();
         }
@@ -1680,16 +2077,16 @@ try {
         ]);
         this.addCommentPopover.style.display = 'block';
         this.positionPopover(this.addCommentPopover);
-
+      
         this.isSelectingCommentLocation = true;
         document.body.style.cursor = 'crosshair';
-
+      
         // Remove any existing click event listener
         document.removeEventListener('click', this.handleCommentPlacement);
-
+      
         // Add the click event listener
         document.addEventListener('click', this.handleCommentPlacement);
-
+      
         console.log('Comment placement listener added');
       },
 
@@ -1700,29 +2097,22 @@ try {
           console.log('Not selecting comment location, returning');
           return;
         }
-
+      
         // Prevent the click event from being triggered on the toolbar
         if (e.target.closest('#opv-toolbar')) {
           console.log('Click on toolbar, ignoring');
           return;
         }
-
+      
         e.preventDefault();
         e.stopPropagation();
-        this.isSelectingCommentLocation = false;
-        document.body.style.cursor = 'default';
-        document.removeEventListener('click', this.handleCommentPlacement);
-
-        if (this.addCommentPopover) {
-          this.addCommentPopover.remove();
-          this.addCommentPopover = null;
-        }
-
+        this.cancelAddingComment(); // Use the new function here
+      
         const x = e.clientX;
         const y = e.clientY;
-
+      
         console.log('Comment placement coordinates:', x, y);
-
+      
         // Ensure x and y are numbers
         if (
           typeof x === 'number' &&
@@ -1756,7 +2146,7 @@ try {
           return;
         }
 
-        const { selector, xPercent, yPercent } = this.calculateRelativePosition(
+        const { selector, x_percent, y_percent } = this.calculateRelativePosition(
           targetElement,
           x,
           y,
@@ -1766,8 +2156,8 @@ try {
           id: 'temp-' + Date.now(),
           content: '',
           selector: selector,
-          xPercent: xPercent,
-          yPercent: yPercent,
+          x_percent: x_percent,
+          y_percent: y_percent,
           url: window.location.href,
           user: {
             name: 'John Doe',
@@ -1857,13 +2247,24 @@ try {
               // Create a new permanent comment
               const newComment = {
                 ...tempComment,
-                id: Date.now().toString(),
                 content: commentText,
+                url: window.location.href,
               };
 
+              console.log('New comment object to be sent to server:', newComment);
+              this.ws.send(JSON.stringify({
+                type: 'newComment',
+                projectId: this.clientId,
+                url: window.location.href,
+                comment: newComment,
+                token: this.token
+              }));
+
               this.comments.push(newComment);
-              this.renderComment(newComment);
-              this.updateCommentsList();
+
+              // Note: We don't add the comment to this.comments or render it here
+              // We'll wait for the server to confirm and send back the comment with an ID
+
               this.showNotification('Comment added successfully!');
             }
           });
@@ -1877,42 +2278,9 @@ try {
         }
       },
 
-      calculateRelativePosition: function (element, x, y) {
-        const rect = element.getBoundingClientRect();
-        const xPercent = ((x - rect.left) / rect.width) * 100;
-        const yPercent = ((y - rect.top) / rect.height) * 100;
+      
 
-        return {
-          selector: this.getUniqueSelector(element),
-          xPercent: xPercent,
-          yPercent: yPercent,
-        };
-      },
-
-      getUniqueSelector: function (element) {
-        if (element.id) {
-          return `#${element.id}`;
-        }
-        if (element.className && typeof element.className === 'string') {
-          const classes = element.className
-            .split(' ')
-            .filter(c => c.trim() !== '');
-          if (classes.length > 0) {
-            return `.${classes.join('.')}`;
-          }
-        }
-
-        const tag = element.tagName.toLowerCase();
-        if (tag === 'body' || tag === 'html') {
-          return tag;
-        }
-
-        const parent = element.parentNode;
-        const siblings = parent.children;
-        const index = Array.from(siblings).indexOf(element) + 1;
-
-        return `${this.getUniqueSelector(parent)} > ${tag}:nth-child(${index})`;
-      },
+     
       //#endregion
     };
 

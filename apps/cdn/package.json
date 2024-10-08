@@ -6,7 +6,8 @@
     "dev": "next dev --port 3004",
     "build": "next build",
     "start": "next start --port 3004",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:opv": "webpack --mode production"
   },
   "dependencies": {
     "next": "^13.4.1",

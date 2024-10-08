@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import morgan from 'morgan';
-import WebSocket from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 
 require('dotenv').config()
 
@@ -16,7 +16,7 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
 
 // Configure CORS
 const corsOptions: cors.CorsOptions = {
@@ -71,74 +71,66 @@ interface AuthenticatedRequest extends Request {
 // Store for temporary authentication codes
 const authCodes = new Map<string, { projectId: string; redirectUrl: string }>();
 
-// Authentication middleware
+// Update the authenticate middleware
 const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const token = req.headers.authorization?.split(' ')[1];
+
     if (!token) {
         return res.status(401).json({ error: 'No token provided' });
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
-        return res.status(401).json({ error: 'Invalid token' });
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select()
+            .eq('id', user.id)
+            .single();
+
+        if (userError || !userData) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        // Set the auth cookie for Supabase
+        res.setHeader('Set-Cookie', `sb-access-token=${token}; HttpOnly; Path=/; Max-Age=3600; SameSite=Lax`);
+
+        req.user = userData;
+        next();
+    } catch (error) {
+        console.error('Error in authenticate middleware:', error);
+        return res.status(401).json({ error: 'Authentication failed' });
     }
-
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select()
-        .eq('id', user.id)
-        .single();
-
-    if (userError || !userData) {
-        return res.status(401).json({ error: 'User not found' });
-    }
-
-    req.user = userData;
-    next();
 };
 
 // Project access middleware
 const checkProjectAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const projectId = req.header('X-Project-ID');
-    const domain = req.header('X-Domain');
-
-    if (!projectId || !domain) {
-        return res.status(400).json({ error: 'Missing project ID or domain' });
+    if (!projectId) {
+        return res.status(400).json({ error: 'Missing project ID' });
     }
 
     const { data: project, error } = await supabase
         .from('projects')
-        .select()
+        .select('*, organizations(*)')
         .eq('id', projectId)
         .single();
-
+        
     if (error || !project) {
         return res.status(404).json({ error: 'Project not found' });
     }
 
-    const { data: allowedDomains, error: domainsError } = await supabase
-        .from('allowed_domains')
-        .select('domain')
-        .eq('project_id', projectId);
-
-    if (domainsError) {
-        return res.status(500).json({ error: 'Error fetching allowed domains' });
-    }
-
-    const isDomainAllowed = allowedDomains.some(d => domain === d.domain || domain.endsWith(`.${d.domain}`));
-
-    if (!isDomainAllowed) {
-        return res.status(403).json({ error: 'Domain not allowed for this project' });
-    }
-
-    const { data: membership, error: membershipError } = await supabase
-        .from('project_members')
+    const { data: orgMembership, error: orgMembershipError } = await supabase
+        .from('organization_members')
         .select()
-        .eq('project_id', projectId)
+        .eq('organization_id', project.organization_id)
         .eq('user_id', req.user!.id)
         .single();
 
-    if (membershipError || !membership) {
+    if (orgMembershipError || !orgMembership) {
         return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -165,18 +157,63 @@ app.post('/allowed-domains', authenticate, checkProjectAccess, async (req: Authe
 });
 
 // Comments
+// Define the type for the comment object returned by the RPC
+type CommentWithReplies = {
+  id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: string;
+    name: string;
+    avatar_url: string;
+  };
+  project_id: string;
+  parent_id: number | null;
+  url: string;
+  x_percent: number;
+  y_percent: number;
+  selector: string;
+  resolved_at: string | null;
+  replies: CommentWithReplies[] | null;
+};
+
 app.get('/comments', authenticate, checkProjectAccess, async (req: AuthenticatedRequest, res: Response) => {
-    const { data, error } = await supabase
-        .from('comments')
-        .select()
-        .eq('project_id', req.project!.id)
-        .eq('url', req.query.url as string);
-    if (error) res.status(500).json({ error });
-    res.json(data);
+  const domain = req.header('X-Domain');
+  const projectId = req.header('X-Project-ID');
+
+  if (!projectId) {
+    return res.status(400).json({ error: 'Project ID is required' });
+  }
+
+  const { data: comments, error: commentsError } = await supabase
+    .rpc('get_comments_with_replies', {
+      project_id: projectId
+    }) as { data: CommentWithReplies[] | null, error: any };
+
+  if (commentsError) {
+    console.error('Error fetching comments:', commentsError);
+    return res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+
+  if (!comments) {
+    return res.status(404).json({ error: 'No comments found' });
+  }
+  // Filter comments by domain if provided
+  const filteredComments = domain
+    ? comments.filter(comment => {
+        const commentDomain = new URL(comment.url)
+        const targetDomain = new URL(domain)
+        return commentDomain.hostname === targetDomain.hostname
+    })
+    : comments;
+
+  console.log('Fetched comments:', filteredComments);
+  res.json(filteredComments);
 });
 
 app.post('/comments', authenticate, checkProjectAccess, async (req: AuthenticatedRequest, res: Response) => {
-    const { text, x, y, url } = req.body;
+    const { text, x, y, url, selector } = req.body;
     const { data: comment, error } = await supabase
         .from('comments')
         .insert({
@@ -184,8 +221,9 @@ app.post('/comments', authenticate, checkProjectAccess, async (req: Authenticate
             project_id: req.project!.id,
             user_id: req.user!.id,
             url,
-            x_position: x,
-            y_position: y
+            selector,
+            x_percent: x,
+            y_percent: y
         })
         .select()
         .single();
@@ -365,21 +403,210 @@ app.get('*', (req: Request, res: Response) => {
     res.status(404).send("Route not found");
 });
 
+// WebSocket authentication middleware
+const authenticateWS = async (
+  ws: WebSocket,
+  request: http.IncomingMessage
+): Promise<boolean> => {
+  const token = request.url?.split('token=')[1];
+  if (!token) {
+    console.log('No token provided for WebSocket connection');
+    return false;
+  }
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      console.log('Invalid token for WebSocket connection');
+      return false;
+    }
+
+    (ws as any).user = user;
+    return true;
+  } catch (error) {
+    console.error('Error authenticating WebSocket connection:', error);
+    return false;
+  }
+};
+
+// Create a WeakMap to store additional data for each WebSocket connection
+const wsData = new WeakMap<WebSocket, { projectId?: string; url?: string }>();
+
+// WebSocket server with authentication
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', async (request, socket, head) => {
+  try {
+    const ws = await new Promise<WebSocket>((resolve) => {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        resolve(ws);
+      });
+    });
+
+    const isAuthenticated = await authenticateWS(ws, request);
+    if (!isAuthenticated) {
+      ws.close(1008, 'Authentication failed');
+      return;
+    }
+
+    wss.emit('connection', ws, request);
+  } catch (error) {
+    console.error('Error during WebSocket upgrade:', error);
+    socket.destroy();
+  }
+});
+
 // WebSocket connection handling
 wss.on('connection', (ws: WebSocket) => {
-    console.log('New client connected');
+  console.log('New authenticated client connected');
 
-    ws.on('message', (message: string) => {
-        const data = JSON.parse(message);
-        if (data.type === 'join') {
-            (ws as any).projectId = data.projectId;
-            (ws as any).url = data.url;
+  // Initialize the data for this WebSocket
+  wsData.set(ws, {});
+
+  ws.on('message', async (message: string) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('Received WebSocket message:', data);
+      
+      if (data.type === 'join') {
+        const wsInfo = wsData.get(ws);
+        if (wsInfo) {
+          wsInfo.projectId = data.projectId;
+          wsInfo.url = data.url;
         }
-    });
+        
+        // We don't need to send initial comments here anymore
+      } else if (data.type === 'newComment') {
+        const user = (ws as any).user;
+        if (!user) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
+          return;
+        }
 
-    ws.on('close', () => {
-        console.log('Client disconnected');
-    });
+        // Insert the new comment into the database
+        const { data: comment, error: insertError } = await supabase
+          .from('comments')
+          .insert({
+            project_id: data.projectId,
+            user_id: user.id,
+            content: data.comment.content,
+            x_percent: data.comment.x_percent,
+            y_percent: data.comment.y_percent,
+            url: data.url,
+            selector: data.comment.selector,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select('*, users(name, avatar_url)')
+          .single();
+
+        if (insertError) {
+          console.error('Error inserting comment:', insertError);
+          ws.send(JSON.stringify({ type: 'error', message: 'Failed to add comment' }));
+        } else {
+          console.log('New comment added:', comment);
+          // Broadcast the new comment to all connected clients for this project and URL
+          wss.clients.forEach((client: WebSocket) => {
+            const clientInfo = wsData.get(client);
+            if (client.readyState === WebSocket.OPEN && 
+                clientInfo &&
+                clientInfo.projectId === data.projectId && 
+                clientInfo.url === data.url) {
+              client.send(JSON.stringify({ type: 'newComment', comment }));
+            }
+          });
+        }
+      } else if (data.type === 'updateComment') {
+        const user = (ws as any).user;
+        if (!user) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
+          return;
+        }
+
+        // Update the comment in the database
+        const { data: updatedComment, error: updateError } = await supabase
+          .from('comments')
+          .update({
+            x_percent: data.comment.x_percent,
+            y_percent: data.comment.y_percent,
+            selector: data.comment.selector,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.comment.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error updating comment:', updateError);
+          ws.send(JSON.stringify({ type: 'error', message: 'Failed to update comment' }));
+        } else {
+          console.log('Comment updated:', updatedComment);
+          // Broadcast the updated comment to all connected clients for this project and URL
+          wss.clients.forEach((client: WebSocket) => {
+            const clientInfo = wsData.get(client);
+            if (client.readyState === WebSocket.OPEN && 
+                clientInfo &&
+                clientInfo.projectId === data.projectId && 
+                clientInfo.url === data.url) {
+              client.send(JSON.stringify({ type: 'updateComment', comment: updatedComment }));
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error processing WebSocket message:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
+    // Clean up the data when the connection is closed
+    wsData.delete(ws);
+  });
+});
+
+// Add a new route to verify the token
+app.post('/auth/verify', async (req: Request, res: Response) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+        return res.status(400).json({ error: 'No token provided' });
+    }
+
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error) {
+            console.log('Error verifying token:', error);
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select()
+            .eq('id', user.id)
+            .single();
+
+        if (userError || !userData) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        res.json({ 
+            valid: true, 
+            user: {
+                id: userData.id,
+                email: userData.email,
+                name: userData.name
+            }
+        });
+    } catch (error) {
+        console.error('Error in verify token route:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 const port = process.env.API_PORT || 3003;

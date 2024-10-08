@@ -25,7 +25,7 @@ const Script = () => {
 `,
         }}
       />
-      <script src={`${process.env.NEXT_PUBLIC_CDN_URL}/opv2.js`}></script>
+      <script src={`${process.env.NEXT_PUBLIC_CDN_URL}/opv2.js`} async defer />
     </>
   );
 };

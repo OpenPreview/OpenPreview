@@ -19,6 +19,7 @@
     "express": "^4.17.1",
     "helmet": "^4.6.0",
     "joi": "^17.4.1",
+    "jsonwebtoken": "^9.0.2",
     "monk": "^7.3.3",
     "morgan": "^1.10.0",
     "nodenv": "^0.1.0"
