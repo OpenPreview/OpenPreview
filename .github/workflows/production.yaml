@@ -12,6 +12,7 @@ jobs:
 
     env:
       SUPABASE_DB_URL: ${{ secrets.PRODUCTION_DB_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
     steps:
       - uses: actions/checkout@v3
