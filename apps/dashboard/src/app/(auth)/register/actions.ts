@@ -28,14 +28,16 @@ export async function sendSignupEmail({
     });
 
     if (error) throw error;
-
-    const verificationLink = data.properties.action_link;
+    const token_hash = data.properties.hashed_token;
+    const verificationLink = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/onboarding`);
+    verificationLink.searchParams.append('token_hash', token_hash)
+    verificationLink.searchParams.append('type','magiclink')
 
     const result = await resend.emails.send({
       from: 'OpenPreview <noreply@openpreview.dev>',
       to: email,
       subject: 'Welcome to OpenPreview - Verify Your Email',
-      react: OpenPreviewSignupEmail({ email, username: name, verificationLink }),
+      react: OpenPreviewSignupEmail({ email, username: name, verificationLink: verificationLink.toString() }),
     });
 
     console.log(result);
