@@ -38,6 +38,8 @@ export async function sendSignupEmail({
       react: OpenPreviewSignupEmail({ email, username: name, verificationLink }),
     });
 
+    console.log(result);
+
     if (result.error) throw result.error;
 
     if (!result.data) throw new Error('No data returned from Resend');
