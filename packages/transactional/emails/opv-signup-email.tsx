@@ -77,10 +77,6 @@ export const OpenPreviewSignupEmail = ({
                 {verificationLink}
               </Link>
             </Text>
-            <Text className="text-[14px] leading-[24px] text-[#222f5a]">
-              If you didn't create an account with OpenPreview, you can safely
-              ignore this email.
-            </Text>
             <Text className="mt-[32px] text-[12px] leading-[24px] text-[#666666]">
               If you have any questions or need assistance, please don't
               hesitate to contact our support team.

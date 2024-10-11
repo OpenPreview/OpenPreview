@@ -516,22 +516,24 @@ try {
         const textarea = this.commentForm.querySelector('textarea');
         const commentText = textarea.value.trim();
         if (!commentText) return;
-
+      
         const targetElement = this.getTargetElement();
         if (!targetElement) {
           console.error('Unable to find target element for comment');
           return;
         }
-
-        const { selector, xPercent, yPercent } =
-          this.calculateRelativePosition(targetElement);
-
+      
+        const { selector, x, y } = this.calculateRelativePosition(targetElement, 
+          parseFloat(this.commentForm.dataset.x), 
+          parseFloat(this.commentForm.dataset.y)
+        );
+      
         const comment = {
           id: Date.now().toString(),
           content: commentText,
           selector: selector,
-          xPercent: xPercent,
-          yPercent: yPercent,
+          x: x,
+          y: y,
           url: window.location.href,
           user: {
             name: 'John Doe',
@@ -541,9 +543,9 @@ try {
           replies: [],
           color: '#1DA1F2', // Default color
         };
-
+      
         console.log('Comment object to be sent to server:', comment);
-
+      
         this.comments.push(comment);
         this.renderComment(comment);
         this.hideCommentForm();
@@ -552,18 +554,15 @@ try {
         this.showNotification('Comment added successfully!');
       },
 
-      calculateRelativePosition: function (element) {
+      calculateRelativePosition: function (element, x, y) {
         const rect = element.getBoundingClientRect();
-        const x = parseFloat(this.commentForm.dataset.x);
-        const y = parseFloat(this.commentForm.dataset.y);
-
-        const xPercent = ((x - rect.left) / rect.width) * 100;
-        const yPercent = ((y - rect.top) / rect.height) * 100;
-
+        const xPercent = ((x - rect.left) / rect.width);
+        const yPercent = ((y - rect.top) / rect.height);
+      
         return {
           selector: this.getUniqueSelector(element),
-          xPercent: xPercent,
-          yPercent: yPercent,
+          x: xPercent,
+          y: yPercent
         };
       },
 
@@ -1893,25 +1892,35 @@ try {
         if (element.id) {
           return `#${element.id}`;
         }
-        if (element.className && typeof element.className === 'string') {
-          const classes = element.className
-            .split(' ')
-            .filter(c => c.trim() !== '');
-          if (classes.length > 0) {
-            return `.${classes.join('.')}`;
+
+        let path = [];
+        while (element.nodeType === Node.ELEMENT_NODE) {
+          let selector = element.tagName.toLowerCase();
+          if (element.className) {
+            const classes = element.className.split(' ').filter(c => c.trim() !== '');
+            if (classes.length > 0) {
+              selector += '.' + classes.join('.');
+            }
+          }
+          
+          let sibling = element;
+          let nth = 0;
+          while (sibling) {
+            if (sibling.nodeType === Node.ELEMENT_NODE && sibling.tagName === element.tagName) nth++;
+            sibling = sibling.previousSibling;
+          }
+          if (nth > 1) selector += `:nth-of-type(${nth})`;
+
+          path.unshift(selector);
+          element = element.parentNode;
+          
+          if (element === document.body || element === document.documentElement) {
+            path.unshift(element.tagName.toLowerCase());
+            break;
           }
         }
 
-        const tag = element.tagName.toLowerCase();
-        if (tag === 'body' || tag === 'html') {
-          return tag;
-        }
-
-        const parent = element.parentNode;
-        const siblings = parent.children;
-        const index = Array.from(siblings).indexOf(element) + 1;
-
-        return `${this.getUniqueSelector(parent)} > ${tag}:nth-child(${index})`;
+        return path.join('>');
       },
       //#endregion
     };
