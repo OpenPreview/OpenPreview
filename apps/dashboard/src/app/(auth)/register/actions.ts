@@ -31,12 +31,16 @@ export async function sendSignupEmail({
 
     const verificationLink = data.properties.action_link;
 
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: 'OpenPreview <noreply@openpreview.dev>',
       to: email,
       subject: 'Welcome to OpenPreview - Verify Your Email',
       react: OpenPreviewSignupEmail({ email, username: name, verificationLink }),
     });
+
+    if (result.error) throw result.error;
+
+    if (!result.data) throw new Error('No data returned from Resend');
 
     return { success: true, error: null };
   } catch (error) {
