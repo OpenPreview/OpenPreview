@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       <html>
         <body>
           <script>
-            window.opener.postMessage({ type: 'LOGIN_SUCCESS', token: '${session.access_token}' }, '*');
+            window.opener.postMessage({ type: 'LOGIN_SUCCESS', token: '${session.access_token}', user: '${user}' }, '*');
             window.close();
           </script>
         </body>
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       <html>
         <body>
           <script>
-            window.opener.postMessage({ type: 'LOGIN_SUCCESS', token: '${data.session.access_token}' }, '*');
+            window.opener.postMessage({ type: 'LOGIN_SUCCESS', token: '${data.session.access_token}', user: '${data.user}' }, '*');
             window.close();
           </script>
         </body>

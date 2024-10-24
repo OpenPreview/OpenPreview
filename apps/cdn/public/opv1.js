@@ -199,8 +199,8 @@ try {
         marker.dataset.commentId = comment.id;
         marker.style.cssText = `
           position: absolute;
-          left: ${comment.x_position}px;
-          top: ${comment.y_position}px;
+          left: ${comment.x_percent}px;
+          top: ${comment.y_percent}px;
           width: 20px;
           height: 20px;
           background-color: #007bff;

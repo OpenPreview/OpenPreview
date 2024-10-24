@@ -190,14 +190,14 @@ app.get('/comments', authenticate, checkProjectAccess, async (req: Authenticated
     .rpc('get_comments_with_replies', {
       project_id: projectId
     }) as { data: CommentWithReplies[] | null, error: any };
+    
 
   if (commentsError) {
     console.error('Error fetching comments:', commentsError);
     return res.status(500).json({ error: 'Failed to fetch comments' });
   }
-
   if (!comments) {
-    return res.status(404).json({ error: 'No comments found' });
+    return res.json([]);
   }
   // Filter comments by domain if provided
   const filteredComments = domain
@@ -208,7 +208,6 @@ app.get('/comments', authenticate, checkProjectAccess, async (req: Authenticated
     })
     : comments;
 
-  console.log('Fetched comments:', filteredComments);
   res.json(filteredComments);
 });
 
@@ -227,7 +226,6 @@ app.post('/comments', authenticate, checkProjectAccess, async (req: Authenticate
         })
         .select()
         .single();
-
     if (error) res.status(500).json({ error });
     
     // Broadcast new comment to all connected clients for this project and URL
@@ -403,11 +401,43 @@ app.get('*', (req: Request, res: Response) => {
     res.status(404).send("Route not found");
 });
 
-// WebSocket authentication middleware
+// Update the WebSocket connection type
+interface AuthenticatedWebSocket extends WebSocket {
+  user?: Tables<'users'>;
+  projectId?: string;
+  customUrl?: string; // Changed from 'url' to 'customUrl'
+}
+
+// WebSocket server with authentication
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', async (request, socket, head) => {
+  try {
+    const ws = await new Promise<WebSocket>((resolve) => {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        resolve(ws);
+      });
+    });
+
+    const isAuthenticated = await authenticateWS(ws as AuthenticatedWebSocket, request);
+    if (!isAuthenticated) {
+      ws.close(1008, 'Authentication failed');
+      return;
+    }
+
+    wss.emit('connection', ws, request);
+  } catch (error) {
+    console.error('Error during WebSocket upgrade:', error);
+    socket.destroy();
+  }
+});
+
+// Update the authenticateWS function
 const authenticateWS = async (
   ws: WebSocket,
   request: http.IncomingMessage
 ): Promise<boolean> => {
+  const authWs = ws as AuthenticatedWebSocket;
   const token = request.url?.split('token=')[1];
   if (!token) {
     console.log('No token provided for WebSocket connection');
@@ -421,7 +451,18 @@ const authenticateWS = async (
       return false;
     }
 
-    (ws as any).user = user;
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select()
+      .eq('id', user.id)
+      .single();
+
+    if (userError || !userData) {
+      console.log('User not found for WebSocket connection');
+      return false;
+    }
+
+    authWs.user = userData;
     return true;
   } catch (error) {
     console.error('Error authenticating WebSocket connection:', error);
@@ -429,97 +470,70 @@ const authenticateWS = async (
   }
 };
 
-// Create a WeakMap to store additional data for each WebSocket connection
-const wsData = new WeakMap<WebSocket, { projectId?: string; url?: string }>();
-
-// WebSocket server with authentication
-const wss = new WebSocketServer({ noServer: true });
-
-server.on('upgrade', async (request, socket, head) => {
-  try {
-    const ws = await new Promise<WebSocket>((resolve) => {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        resolve(ws);
-      });
-    });
-
-    const isAuthenticated = await authenticateWS(ws, request);
-    if (!isAuthenticated) {
-      ws.close(1008, 'Authentication failed');
-      return;
-    }
-
-    wss.emit('connection', ws, request);
-  } catch (error) {
-    console.error('Error during WebSocket upgrade:', error);
-    socket.destroy();
-  }
-});
-
 // WebSocket connection handling
 wss.on('connection', (ws: WebSocket) => {
+  const authWs = ws as AuthenticatedWebSocket;
   console.log('New authenticated client connected');
 
-  // Initialize the data for this WebSocket
-  wsData.set(ws, {});
-
-  ws.on('message', async (message: string) => {
+  authWs.on('message', async (message: string) => {
     try {
       const data = JSON.parse(message);
       console.log('Received WebSocket message:', data);
       
       if (data.type === 'join') {
-        const wsInfo = wsData.get(ws);
-        if (wsInfo) {
-          wsInfo.projectId = data.projectId;
-          wsInfo.url = data.url;
-        }
-        
-        // We don't need to send initial comments here anymore
+        authWs.projectId = data.projectId;
+        authWs.customUrl = data.url; // Changed from 'url' to 'customUrl'
       } else if (data.type === 'newComment') {
-        const user = (ws as any).user;
-        if (!user) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
+        if (!authWs.user) {
+          authWs.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
           return;
         }
+
+        // Ensure all fields are properly typed and present
+        const commentData = {
+          project_id: data.projectId,
+          user_id: authWs.user.id,
+          content: data.comment.content,
+          x_percent: data.comment.x_percent,
+          y_percent: data.comment.y_percent,
+          url: data.url,
+          selector: data.comment.selector, // This is now a stringified JSON object
+          page_title: data.comment.page_title,
+          screen_width: data.comment.screen_width,
+          screen_height: data.comment.screen_height,
+          device_pixel_ratio: data.comment.device_pixel_ratio,
+          deployment_url: data.comment.deployment_url,
+          draft_mode: data.comment.draft_mode,
+          user_agent: data.comment.user_agent,
+          node_id: data.comment.node_id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
 
         // Insert the new comment into the database
         const { data: comment, error: insertError } = await supabase
           .from('comments')
-          .insert({
-            project_id: data.projectId,
-            user_id: user.id,
-            content: data.comment.content,
-            x_percent: data.comment.x_percent,
-            y_percent: data.comment.y_percent,
-            url: data.url,
-            selector: data.comment.selector,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select('*, users(name, avatar_url)')
+          .insert(commentData)
+          .select('*, user:users!user_id(name, avatar_url)')
           .single();
 
         if (insertError) {
           console.error('Error inserting comment:', insertError);
-          ws.send(JSON.stringify({ type: 'error', message: 'Failed to add comment' }));
+          authWs.send(JSON.stringify({ type: 'error', message: 'Failed to add comment' }));
         } else {
-          console.log('New comment added:', comment);
-          // Broadcast the new comment to all connected clients for this project and URL
+          // Broadcast the new comment to all connected clients
           wss.clients.forEach((client: WebSocket) => {
-            const clientInfo = wsData.get(client);
-            if (client.readyState === WebSocket.OPEN && 
-                clientInfo &&
-                clientInfo.projectId === data.projectId && 
-                clientInfo.url === data.url) {
-              client.send(JSON.stringify({ type: 'newComment', comment }));
+            const authClient = client as AuthenticatedWebSocket;
+            if (authClient.readyState === WebSocket.OPEN && 
+                authClient.projectId === data.projectId && 
+                authClient.customUrl === data.url) { // Changed from 'url' to 'customUrl'
+              authClient.send(JSON.stringify({ type: 'newComment', comment }));
             }
           });
         }
       } else if (data.type === 'updateComment') {
-        const user = (ws as any).user;
-        if (!user) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
+        if (!authWs.user) {
+          authWs.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
           return;
         }
 
@@ -538,17 +552,15 @@ wss.on('connection', (ws: WebSocket) => {
 
         if (updateError) {
           console.error('Error updating comment:', updateError);
-          ws.send(JSON.stringify({ type: 'error', message: 'Failed to update comment' }));
+          authWs.send(JSON.stringify({ type: 'error', message: 'Failed to update comment' }));
         } else {
-          console.log('Comment updated:', updatedComment);
           // Broadcast the updated comment to all connected clients for this project and URL
           wss.clients.forEach((client: WebSocket) => {
-            const clientInfo = wsData.get(client);
-            if (client.readyState === WebSocket.OPEN && 
-                clientInfo &&
-                clientInfo.projectId === data.projectId && 
-                clientInfo.url === data.url) {
-              client.send(JSON.stringify({ type: 'updateComment', comment: updatedComment }));
+            const authClient = client as AuthenticatedWebSocket;
+            if (authClient.readyState === WebSocket.OPEN && 
+                authClient.projectId === data.projectId && 
+                authClient.customUrl === data.url) { // Changed from 'url' to 'customUrl'
+              authClient.send(JSON.stringify({ type: 'updateComment', comment: updatedComment }));
             }
           });
         }
@@ -558,10 +570,8 @@ wss.on('connection', (ws: WebSocket) => {
     }
   });
 
-  ws.on('close', () => {
+  authWs.on('close', () => {
     console.log('Client disconnected');
-    // Clean up the data when the connection is closed
-    wsData.delete(ws);
   });
 });
 
@@ -600,7 +610,8 @@ app.post('/auth/verify', async (req: Request, res: Response) => {
             user: {
                 id: userData.id,
                 email: userData.email,
-                name: userData.name
+                name: userData.name,
+                avatar_url: userData.avatar_url
             }
         });
     } catch (error) {
@@ -613,3 +624,4 @@ const port = process.env.API_PORT || 3003;
 server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
 });
+

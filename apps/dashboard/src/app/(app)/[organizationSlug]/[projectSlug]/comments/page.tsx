@@ -26,8 +26,9 @@ interface Comment {
   user: User;
   parent_id: string | null;
   url: string;
-  x_position: number;
-  y_position: number;
+  selector: string;
+  x_percent: number;
+  y_percent: number;
 }
 
 interface CommentsPageProps {
@@ -61,8 +62,8 @@ export default function CommentsPage({ params }: CommentsPageProps) {
         updated_at,
         parent_id,
         url,
-        x_position,
-        y_position,
+        x_percent,
+        y_percent,
         user:users (id, name, avatar_url)
       `,
         )
@@ -143,8 +144,9 @@ export default function CommentsPage({ params }: CommentsPageProps) {
       const parentComment = parentId
         ? comments.find(c => c.id === parentId)
         : null;
-      const x_position = parentComment ? parentComment.x_position : 0;
-      const y_position = parentComment ? parentComment.y_position : 0;
+      const x_percent = parentComment ? parentComment.x_percent : 0;
+      const y_percent = parentComment ? parentComment.y_percent : 0;
+      const selector = parentComment ? parentComment.selector : '';
       const commentUrl = parentComment ? parentComment.url : url;
 
       const { data: userProfile, error: userProfileError } = await supabase
@@ -165,8 +167,9 @@ export default function CommentsPage({ params }: CommentsPageProps) {
           user_id: userData.user.id,
           parent_id: parentId,
           url: commentUrl || '',
-          x_position,
-          y_position,
+          selector: '',
+          x_percent,
+          y_percent,
         })
         .select()
         .single();

@@ -70,13 +70,21 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
+          deployment_url: string | null
+          device_pixel_ratio: number | null
+          draft_mode: boolean | null
           id: string
+          node_id: string | null
+          page_title: string | null
           parent_id: string | null
           project_id: string | null
           resolved_at: string | null
+          screen_height: number | null
+          screen_width: number | null
           selector: string
           updated_at: string | null
           url: string
+          user_agent: string | null
           user_id: string | null
           x_percent: number
           y_percent: number
@@ -84,13 +92,21 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string | null
+          deployment_url?: string | null
+          device_pixel_ratio?: number | null
+          draft_mode?: boolean | null
           id?: string
+          node_id?: string | null
+          page_title?: string | null
           parent_id?: string | null
           project_id?: string | null
           resolved_at?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
           selector: string
           updated_at?: string | null
           url: string
+          user_agent?: string | null
           user_id?: string | null
           x_percent: number
           y_percent: number
@@ -98,13 +114,21 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string | null
+          deployment_url?: string | null
+          device_pixel_ratio?: number | null
+          draft_mode?: boolean | null
           id?: string
+          node_id?: string | null
+          page_title?: string | null
           parent_id?: string | null
           project_id?: string | null
           resolved_at?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
           selector?: string
           updated_at?: string | null
           url?: string
+          user_agent?: string | null
           user_id?: string | null
           x_percent?: number
           y_percent?: number

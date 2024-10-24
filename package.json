@@ -10,7 +10,8 @@
     "start": "turbo run start",
     "prettier": "prettier --write --ignore-path .gitignore .",
     "types": "supabase gen types --lang=typescript --local > ./supabase/src/supabase.types.ts",
-    "seed": "bunx supabase db dump -f supabase/seed.sql --data-only --local"
+    "seed": "bunx supabase db dump -f supabase/seed.sql --data-only --local",
+    "db_save": "bunx supabase db diff --local > supabase/migrations/$(new Date().toISOString().split('T')[0] + '_migration.sql')"
   },
   "devDependencies": {
     "@openpreview/eslint-config-custom": "*",

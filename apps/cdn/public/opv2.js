@@ -5,7 +5,7 @@ try {
     // Main OpenPreview object
     const OpenPreview = {
       //#region Vars
-      clientId: null,
+      projectId: null,
       comments: [],
       toolbar: null,
       commentForm: null,
@@ -17,6 +17,9 @@ try {
       allowedDomains: ['http://localhost:3000'], // Add allowed domains
       token: null,
       ws: null,
+      user: null,
+      isToolbarExpanded: false,
+      hasActiveInteraction: false,
       //#endregion
       isPreviewDomain: function (origin) {
         // Check Localhost for Development
@@ -35,10 +38,50 @@ try {
         const currentPath = window.location.pathname;
         return currentPath === path;
       },
+      handleKeyboardShortcuts: function(e) {
+        // Don't trigger shortcuts when typing in input/textarea
+        if (e.target.matches('input, textarea')) return;
+
+        switch (e.key.toLowerCase()) {
+          case 'c':
+            e.preventDefault(); // Prevent default 'c' behavior
+            console.log('C key pressed, starting comment'); // Debug log
+            this.startAddingComment();
+            break;
+          case 'escape':
+            // Cancel current action
+            if (this.isSelectingCommentLocation) {
+              this.cancelAddingComment();
+            }
+            // Close any open popovers/menus
+            if (this.settingsPopover?.style.display === 'block') {
+              this.settingsPopover.style.display = 'none';
+            }
+            if (this.menuPopover?.style.display === 'block') {
+              this.menuPopover.style.display = 'none';
+            }
+            if (this.commentsList?.style.display === 'block') {
+              this.toggleCommentsList();
+            }
+            // Close any open comment details
+            document.querySelectorAll('.opv-comment-details').forEach(detail => {
+              detail.style.display = 'none';
+            });
+            break;
+        }
+      },
       //#region Init Func
       init: function (config) {
         console.log('OpenPreview initializing...');
-        this.clientId = config.clientId;
+        this.projectId = config.projectId;
+
+        // Bind only the methods that exist and we need
+        this.handleKeyboardShortcuts = this.handleKeyboardShortcuts.bind(this);
+        this.startAddingComment = this.startAddingComment.bind(this);
+        this.showCommentForm = this.showCommentForm.bind(this);
+
+        // Add keyboard shortcut listener early
+        document.addEventListener('keydown', this.handleKeyboardShortcuts);
 
         const weborigin = window.location.origin;
         console.log('weborigin', weborigin);
@@ -95,12 +138,8 @@ try {
         }, 5000); // Check every 5 seconds
 
         window.addEventListener('resize', this.handleResize.bind(this));
-
-        // Bind methods to preserve 'this' context
-        this.handleCommentPlacement = this.handleCommentPlacement.bind(this);
-        this.startAddingComment = this.startAddingComment.bind(this);
-        this.showCommentForm = this.showCommentForm.bind(this);
       },
+     
 
       initializeComponents: function() {
         this.createToolbar();
@@ -129,6 +168,7 @@ try {
       
             if (event.data.type === 'LOGIN_SUCCESS') {
               this.token = event.data.token;
+              this.user = event.data.user;
               this.setCookie('opv_token', this.token, 7); // Save for 7 days
               this.onLoginSuccess();
               loginWindow.close();
@@ -156,17 +196,23 @@ try {
     
       updateLoginState: function() {
         if (this.token) {
-          this.loginButton.style.display = 'none';
-          if (this.settingsPopover) {
-            const logoutButton = this.settingsPopover.querySelector('button:contains("Logout")');
-            if (logoutButton) logoutButton.style.display = 'block';
-          }
+          // User is logged in, show all toolbar buttons
+          this.toolbar.innerHTML = ''; // Clear existing content
+          const leftGroup = this.createToolbarGroup([
+            { icon: 'chat', title: 'Comments' },
+            { icon: 'inbox', title: 'Inbox' },
+          ]);
+          const rightGroup = this.createToolbarGroup([
+            { icon: 'eye', title: 'Preview' },
+            { icon: 'settings', title: 'Settings' },
+          ]);
+          this.toolbar.appendChild(leftGroup);
+          this.toolbar.appendChild(rightGroup);
         } else {
-          this.loginButton.style.display = 'block';
-          if (this.settingsPopover) {
-            const logoutButton = this.settingsPopover.querySelector('button:contains("Logout")');
-            if (logoutButton) logoutButton.style.display = 'none';
-          }
+          // User is not logged in, show only login button
+          this.toolbar.innerHTML = ''; // Clear existing content
+          this.loginButton = this.createLoginButton();
+          this.toolbar.appendChild(this.loginButton);
         }
       },
     
@@ -178,7 +224,6 @@ try {
         this.updateLoginState();
         this.comments = []; // Clear comments
         this.renderComments(); // Re-render (clear) comments
-        this.togglePopover(this.settingsPopover); // Close settings popover
       },
 
       // Add this new helper function to set cookies
@@ -217,7 +262,7 @@ try {
           const res = await fetch(`http://localhost:3003/comments`, {
             headers: {
               'Authorization': `Bearer ${token}`,
-              'X-Project-ID': this.clientId,
+              'X-Project-ID': this.projectId,
               'X-Domain': window.location.origin,
             }
           });
@@ -232,7 +277,6 @@ try {
           }
 
           const comments = await res.json();
-          console.log('Fetched comments:', comments);
           this.comments = comments;
 
           if (comments.length === 0) {
@@ -254,7 +298,7 @@ try {
           console.log('WebSocket connected');
           this.ws.send(JSON.stringify({
             type: 'join',
-            projectId: this.clientId,
+            projectId: this.projectId,
             url: window.location.href
           }));
         };
@@ -335,126 +379,64 @@ try {
         this.updateCommentsList();
       },
 
-      renderComment: function (comment) {
-        console.log('Rendering individual comment:', comment);
-        let targetElement = this.findTargetElement(comment.selector);
-        const webPath = window.location.pathname;
-        const commentPath = new URL(comment.url).pathname;
-      
-        console.log('commentPath', commentPath, 'webPath', webPath, 'isEqual', commentPath === webPath);
-        
-        if (webPath !== commentPath) {
-          console.log('Comment path does not match current page, skipping render');
-          return null;
-        }
-        if (!targetElement) {
-          console.warn('Target element not found for comment:', comment);
-          targetElement = document.body; // Fallback to body if element not found
-        }
-      
-        const updatePosition = () => {
-          const rect = targetElement.getBoundingClientRect();
-          const x = rect.left + (rect.width * comment.x_percent) / 100;
-          const y = rect.top + (rect.height * comment.y_percent) / 100;
-      
-          marker.style.left = `${x}px`;
-          marker.style.top = `${y}px`;
-      
-          if (detailsBox) {
-            detailsBox.style.left = `${x + 40}px`;
-            detailsBox.style.top = `${y}px`;
-          }
+   
 
-        };
-      
-        const marker = document.createElement('div');
-        marker.classList.add('opv-comment-marker');
-        marker.dataset.commentId = comment.id;
-        marker.style.cssText = `
-          position: fixed;
-          width: 32px;
-          height: 32px;
-          background-color: ${comment.resolved_at ? '#4CAF50' : '#1DA1F2'};
-          border-radius: 20% 100% 100% 100%;
-          cursor: pointer;
-          z-index: 2147483647;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 16px;
-          box-shadow: 0 2px 10px rgba(29, 161, 242, 0.3);
-          transition: none;
-          user-select: none;
-        `;
-      
-        marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
-      
-        const detailsBox = document.createElement('div');
-        detailsBox.classList.add('opv-comment-details');
-        detailsBox.dataset.commentId = comment.id;
-        detailsBox.style.cssText = `
-          position: fixed;
-          width: 300px;
-          background-color: white;
-          border-radius: 12px;
-          padding: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          z-index: 2147483644;
-          display: none;
-          max-height: 400px;
-          overflow-y: auto;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        `;
-      
-        // Add comment content
-        const commentContent = document.createElement('div');
-        commentContent.innerHTML = `
-          <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            <img src="${comment.user?.avatar_url || 'https://i.pravatar.cc/150?img=8'}" alt="${comment.user?.name || 'Anonymous'}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-            <div>
-              <div style="font-weight: bold;">${comment.user?.name || 'Anonymous'}</div>
-              <div style="font-size: 0.8em; color: #666;">${new Date(comment.created_at).toLocaleString()}</div>
-            </div>
-          </div>
-          <div class="comment-content" style="margin-bottom: 15px;">${comment.content}</div>
-        `;
-        detailsBox.appendChild(commentContent);
-      
-        // Add replies section
-        if (comment.replies && comment.replies.length > 0) {
-          const repliesContainer = document.createElement('div');
-          repliesContainer.classList.add('replies-container');
-          repliesContainer.style.cssText = `
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-          `;
-          comment.replies.forEach(reply => {
-            const replyElement = this.createReplyElement(reply);
-            repliesContainer.appendChild(replyElement);
-          });
-          detailsBox.appendChild(repliesContainer);
+      updateCommentPosition: function(marker, detailsBox, comment, targetElement) {
+        if (!marker || !targetElement) return;
+
+        const rect = targetElement.getBoundingClientRect();
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+        // Calculate absolute position based on percentages
+        const x = rect.left + scrollX + (rect.width * comment.x_percent);
+        const y = rect.top + scrollY + (rect.height * comment.y_percent);
+
+        // Update marker position
+        marker.style.position = 'absolute';
+        marker.style.left = `${x}px`;
+        marker.style.top = `${y}px`;
+
+        // Update details box position if it exists
+        if (detailsBox) {
+          detailsBox.style.position = 'absolute';
+          this.positionDetailsBox(marker, detailsBox);
         }
-      
-        // Add reply form
-        const replyForm = this.createReplyForm(comment.id);
-        detailsBox.appendChild(replyForm);
-      
-        document.body.appendChild(marker);
-        document.body.appendChild(detailsBox);
-      
-        updatePosition();
-      
-        window.addEventListener('resize', updatePosition);
-        window.addEventListener('scroll', updatePosition);
-      
-        // Update position periodically to handle dynamic content changes
-        setInterval(updatePosition, 1000);
-      
-        this.makeCommentDraggable(marker, detailsBox, comment, updatePosition);
-      
-        marker.addEventListener('click', () => this.showCommentDetails(comment.id));
+      },
+
+      positionDetailsBox: function(marker, detailsBox) {
+        const markerRect = marker.getBoundingClientRect();
+        const detailsRect = detailsBox.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+        // Horizontal positioning
+        let leftPosition;
+        if (viewportWidth - markerRect.right >= detailsRect.width + 10) {
+          // Position to the right if there's enough space
+          leftPosition = markerRect.right + scrollX + 10;
+        } else if (markerRect.left >= detailsRect.width + 10) {
+          // Position to the left if there's not enough space on the right
+          leftPosition = markerRect.left + scrollX - detailsRect.width - 10;
+        } else {
+          // Center horizontally if no space on sides
+          leftPosition = scrollX + (viewportWidth - detailsRect.width) / 2;
+        }
+
+        // Vertical positioning
+        let topPosition = markerRect.top + scrollY; // Align top of details box with top of marker
+
+        // Ensure the details box doesn't go off-screen vertically
+        if (topPosition + detailsRect.height > scrollY + viewportHeight) {
+          // If it goes off the bottom, align the bottom of the details box with the bottom of the viewport
+          topPosition = scrollY + viewportHeight - detailsRect.height - 10;
+        }
+
+        // Apply the calculated position
+        detailsBox.style.left = `${leftPosition}px`;
+        detailsBox.style.top = `${topPosition}px`;
       },
 
       createReplyForm: function (commentId) {
@@ -518,7 +500,7 @@ try {
           // Send the reply to the server
           this.ws.send(JSON.stringify({
             type: 'newReply',
-            projectId: this.clientId,
+            projectId: this.projectId,
             commentId: commentId,
             reply: reply,
             token: this.token
@@ -618,55 +600,45 @@ try {
         console.log('Creating toolbar...');
         this.toolbar = document.createElement('div');
         this.toolbar.id = 'opv-toolbar';
+        
+        const defaultHeight = '36px'; // Slightly reduced height
+        
         this.toolbar.style.cssText = `
           position: fixed !important;
           bottom: 20px !important;
           left: 50% !important;
           transform: translateX(-50%) !important;
-          height: 48px !important;
+          height: ${defaultHeight} !important;
           background-color: rgba(33, 47, 90, 0.9) !important;
           border: 1px solid rgb(33, 47, 90) !important;
-          border-radius: 24px !important;
+          border-radius: 18px !important;
           display: flex !important;
           align-items: center !important;
-          justify-content: space-between !important;
-          padding: 0 8px !important;
+          justify-content: center !important;
+          padding: 0 4px !important;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
           z-index: 2147483646 !important;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
           transition: all 0.3s ease !important;
         `;
 
+        // Update media query for mobile
         this.toolbar.style.cssText += `
           @media (max-width: 768px) {
             bottom: 10px !important;
-            left: 10px !important;
-            right: 10px !important;
-            transform: none !important;
-            width: calc(100% - 20px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: auto !important;
+            max-width: calc(100% - 20px) !important;
           }
         `;
 
-        const leftGroup = this.createToolbarGroup([
-          { icon: 'chat', title: 'Comments' },
-          { icon: 'inbox', title: 'Inbox' },
-        ]);
-
-        const rightGroup = this.createToolbarGroup([
-          { icon: 'eye', title: 'Preview' },
-          { icon: 'settings', title: 'Settings' },
-        ]);
-
         // Add login button
         this.loginButton = this.createLoginButton();
-        rightGroup.insertBefore(this.loginButton, rightGroup.firstChild);
-
-        this.toolbar.appendChild(leftGroup);
-        this.toolbar.appendChild(rightGroup);
+        this.toolbar.appendChild(this.loginButton);
 
         document.body.appendChild(this.toolbar);
         console.log('Toolbar added to body');
-
       },
 
       createToolbarGroup: function (items) {
@@ -692,35 +664,70 @@ try {
       createToolbarButton: function (icon, title) {
         const button = document.createElement('button');
         button.title = title;
+        
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.style.cssText = `
+          position: absolute;
+          background-color: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          margin-bottom: 8px;
+          white-space: nowrap;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          pointer-events: none;
+          z-index: 2147483647;
+        `;
+
+        // Add keyboard shortcut to tooltip text
+        let tooltipText = title;
+        switch (icon) {
+          case 'chat':
+            tooltipText += ' (C)';
+            break;
+          // Add more shortcuts here as needed
+        }
+        tooltip.textContent = tooltipText;
+
+        // Rest of the button styling
         button.style.cssText = `
-          width: 40px !important;
-          height: 40px !important;
+          position: relative;
+          width: 24px !important;
+          height: 24px !important;
           border: none !important;
           background-color: transparent !important;
           color: white !important;
           cursor: pointer !important;
-          font-size: 20px !important;
+          font-size: 14px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
-          transition: background-color 0.3s ease !important;
+          transition: all 0.3s ease !important;
           border-radius: 50% !important;
+          margin: 0 2px !important;
         `;
+
         button.innerHTML = this.getIconSVG(icon);
-        button.addEventListener('mouseover', () => {
+        
+        // Show/hide tooltip on hover
+        button.addEventListener('mouseenter', () => {
           button.style.backgroundColor = 'rgba(255, 255, 255, 0.1) !important';
+          tooltip.style.opacity = '1';
         });
-        button.addEventListener('mouseout', () => {
+        
+        button.addEventListener('mouseleave', () => {
           button.style.backgroundColor = 'transparent !important';
+          tooltip.style.opacity = '0';
         });
 
-        button.style.cssText += `
-          @media (max-width: 768px) {
-            width: 32px !important;
-            height: 32px !important;
-            font-size: 16px !important;
-          }
-        `;
+        // Add tooltip to button
+        button.appendChild(tooltip);
 
         // Update click event listeners for each button
         switch (icon) {
@@ -748,9 +755,9 @@ try {
         const separator = document.createElement('div');
         separator.style.cssText = `
           width: 1px !important;
-          height: 24px !important;
+          height: 16px !important;
           background-color: rgba(255, 255, 255, 0.2) !important;
-          margin: 0 4px !important;
+          margin: 0 2px !important;
         `;
         return separator;
       },
@@ -802,13 +809,29 @@ try {
           background-color: #1DA1F2;
           color: white;
           border: none;
-          padding: 8px 16px;
+          padding: 6px 12px;
           border-radius: 9999px;
           cursor: pointer;
           font-size: 14px;
           font-weight: bold;
-          margin-right: 8px;
+          transition: all 0.3s ease;
+          min-width: 70px; // Slightly reduced minimum width
+          text-align: center;
+          white-space: nowrap;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         `;
+        
+        // Add hover state for login button
+        loginButton.addEventListener('mouseenter', () => {
+          loginButton.style.backgroundColor = '#1991db';
+          loginButton.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+        });
+
+        loginButton.addEventListener('mouseleave', () => {
+          loginButton.style.backgroundColor = '#1DA1F2';
+          loginButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+        });
+        
         loginButton.addEventListener('click', () => this.login());
         return loginButton;
       },
@@ -1009,26 +1032,7 @@ try {
         });
       },
 
-      showCommentForm: function () {
-        const viewportWidth = Math.max(
-          document.documentElement.clientWidth || 0,
-          window.innerWidth || 0,
-        );
-        const viewportHeight = Math.max(
-          document.documentElement.clientHeight || 0,
-          window.innerHeight || 0,
-        );
-
-        const x = viewportWidth / 2;
-        const y = viewportHeight / 2;
-
-        this.commentForm.style.display = 'block';
-        this.commentForm.style.left = `${x}px`;
-        this.commentForm.style.top = `${y}px`;
-        this.commentForm.dataset.x = x.toString();
-        this.commentForm.dataset.y = y.toString();
-      },
-
+     
       hideCommentForm: function () {
         this.commentForm.style.display = 'none';
       },
@@ -1045,21 +1049,32 @@ try {
             return;
         }
     
-        const { selector, x_percent, y_percent } = this.calculateRelativePosition(targetElement);
+        const x = parseFloat(this.commentForm.dataset.x);
+        const y = parseFloat(this.commentForm.dataset.y);
         
+        const positionData = this.calculateRelativePosition(targetElement, x, y);
+
         const comment = {
             content: commentText,
-            selector: selector,
-            x_percent: x_percent,
-            y_percent: y_percent,
+            selector: positionData.selector,
+            x_percent: positionData.x_percent,
+            y_percent: positionData.y_percent,
             url: window.location.href,
+            page_title: positionData.page_title,
+            screen_width: positionData.screen_width,
+            screen_height: positionData.screen_height,
+            device_pixel_ratio: positionData.device_pixel_ratio,
+            deployment_url: positionData.deployment_url,
+            user_agent: positionData.user_agent,
+            draft_mode: positionData.draft_mode,
+            node_id: positionData.node_id
         };
   
         console.log('Comment object to be sent to server:', comment);
-        console.log('this.ws', this.ws);
+
         this.ws.send(JSON.stringify({
             type: 'newComment',
-            projectId: this.clientId,
+            projectId: this.projectId,
             url: window.location.href,
             comment: comment,
             token: this.token
@@ -1070,147 +1085,86 @@ try {
         this.showNotification('Comment added successfully!');
       },
 
-      getUniqueSelector: function (element) {
-        const path = this.getElementPath(element);
-        const uniqueAttributes = this.getUniqueAttributes(element);
-        return JSON.stringify({ path, attributes: uniqueAttributes });
-      },
-      getElementPath: function (element) {
-        const path = [];
-        while (element && element.nodeType === Node.ELEMENT_NODE) {
-          let selector = element.tagName.toLowerCase();
-          let nth = 1;
-          let sibling = element;
-          while (sibling = sibling.previousElementSibling) {
-            if (sibling.tagName === element.tagName) nth++;
-          }
-          if (nth !== 1) selector += `:nth-of-type(${nth})`;
-          path.unshift(selector);
-          element = element.parentNode;
+      getUniqueSelector: function(element) {
+        if (!element || element === document.body) {
+          return 'body';
         }
+
+        let path = [];
+        let current = element;
+
+        while (current) {
+          if (current === document.body || current === document.documentElement) {
+            break;
+          }
+
+          let selector = current.tagName.toLowerCase();
+          
+          // Add nth-of-type for elements with same tag siblings
+          if (current.parentNode) {
+            const siblings = Array.from(current.parentNode.children);
+            const similarSiblings = siblings.filter(e => e.tagName === current.tagName);
+            if (similarSiblings.length > 1) {
+              const index = similarSiblings.indexOf(current) + 1;
+              selector += `:nth-of-type(${index})`;
+            }
+          }
+
+          path.unshift(selector);
+          current = current.parentNode;
+        }
+
+        path.unshift('body');
         return path.join(' > ');
       },
-      
-      getUniqueAttributes: function (element) {
-        const attributes = {};
-        const uniqueAttrs = ['id', 'name', 'data-testid', 'aria-label'];
-        uniqueAttrs.forEach(attr => {
-          if (element.getAttribute(attr)) {
-            attributes[attr] = element.getAttribute(attr);
-          }
-        });
-        return attributes;
-      },
-      
-      findTargetElement: function (selector) {
-        if (!selector) {
+
+      findTargetElement: function (selectorString) {
+        if (!selectorString) {
           console.warn('No selector provided for findTargetElement');
           return document.body;
         }
-      
+
         try {
-          const { path, attributes } = JSON.parse(selector);
-          let elements = document.querySelectorAll(path);
-          
-          if (elements.length === 1) {
-            return elements[0];
+          // Try to find element using the selector directly
+          const element = document.querySelector(selectorString);
+          if (element) {
+            return element;
           }
-      
-          // If multiple elements match the path, use attributes to narrow it down
-          for (let element of elements) {
-            if (this.matchAttributes(element, attributes)) {
-              return element;
-            }
-          }
-      
-          // If no exact match, return the first element that matches the path
-          return elements[0] || document.body;
+
+          console.warn('Target element not found, falling back to body');
+          return document.body;
         } catch (error) {
-          console.error('Error parsing selector:', error);
+          console.error('Error finding target element:', error);
           return document.body;
         }
       },
-      
-      matchAttributes: function (element, attributes) {
-        for (let key in attributes) {
-          if (element.getAttribute(key) !== attributes[key]) {
-            return false;
-          }
-        }
-        return true;
-      },
-      
-      calculateRelativePosition: function (element, x, y) {
+
+      calculateRelativePosition: function(element, x, y) {
         const rect = element.getBoundingClientRect();
-        const x_percent = ((x - rect.left) / rect.width) * 100;
-        const y_percent = ((y - rect.top) / rect.height) * 100;
-      
+        
+        const x_percent = (x - rect.left) / rect.width;
+        const y_percent = (y - rect.top) / rect.height;
+
         return {
           selector: this.getUniqueSelector(element),
           x_percent: x_percent,
           y_percent: y_percent,
+          page_title: document.title,
+          screen_width: Math.round(window.innerWidth),
+          screen_height: Math.round(window.innerHeight),
+          device_pixel_ratio: window.devicePixelRatio,
+          deployment_url: window.location.host,
+          user_agent: navigator.userAgent,
+          draft_mode: false,
+          node_id: null
         };
       },
-     
-      
-      
-      
-    
-      verifyElementAttributes: function (element, attributes) {
-        for (let key in attributes) {
-          if (key === 'tagName' && element.tagName.toLowerCase() !== attributes[key]) {
-            return false;
-          }
-          if (key === 'classes') {
-            const elementClasses = Array.from(element.classList).join(' ');
-            if (elementClasses !== attributes[key]) {
-              return false;
-            }
-          } else if (element.getAttribute(key) !== attributes[key]) {
-            return false;
-          }
-        }
-        return true;
-      },
-      
-      findElementByAttributes: function (attributes) {
-        const elements = document.getElementsByTagName(attributes.tagName);
-        for (let element of elements) {
-          if (this.verifyElementAttributes(element, attributes)) {
-            return element;
-          }
-        }
-        return null;
-      },
-      
-      calculateRelativePosition: function (element, x, y) {
-        const rect = element.getBoundingClientRect();
-        const x_percent = ((x - rect.left) / rect.width) * 100;
-        const y_percent = ((y - rect.top) / rect.height) * 100;
-      
-        return {
-          selector: this.getUniqueSelector(element),
-          x_percent: x_percent,
-          y_percent: y_percent,
-        };
-      },
-
-      renderComments: function () {
-        this.comments.forEach(comment => {
-          this.renderComment(comment);
-        });
-        this.updateCommentsList();
-      },
-
-      
 
       getTargetElement: function () {
         const x = parseFloat(this.commentForm.dataset.x);
         const y = parseFloat(this.commentForm.dataset.y);
         return document.elementFromPoint(x, y);
       },
-
-      
 
       showCommentDetails: function (commentId) {
         const detailsBox = document.querySelector(
@@ -1225,102 +1179,11 @@ try {
           detailsBox.style.display = isVisible ? 'none' : 'block';
 
           if (!isVisible) {
-            const markerRect = marker.getBoundingClientRect();
-            detailsBox.style.left = `${markerRect.right + 10}px`;
-            detailsBox.style.top = `${markerRect.top}px`;
+            this.positionDetailsBox(marker, detailsBox);
           }
         }
       },
 
-      makeCommentDraggable: function (marker, detailsBox, comment, updatePosition) {
-        let isDragging = false;
-        let startX, startY;
-        let originalX, originalY;
-      
-        const onMouseDown = (e) => {
-          e.preventDefault();
-          isDragging = true;
-          startX = e.clientX;
-          startY = e.clientY;
-          originalX = parseFloat(marker.style.left);
-          originalY = parseFloat(marker.style.top);
-          
-          document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
-        };
-      
-        const onMouseMove = (e) => {
-          if (!isDragging) return;
-          
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          
-          const newX = originalX + dx;
-          const newY = originalY + dy;
-          
-          marker.style.left = `${newX}px`;
-          marker.style.top = `${newY}px`;
-          
-          if (detailsBox) {
-            detailsBox.style.left = `${newX + 40}px`;
-            detailsBox.style.top = `${newY}px`;
-          }
-        };
-      
-        const onMouseUp = () => {
-          isDragging = false;
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          
-          const targetElement = document.elementFromPoint(
-            parseFloat(marker.style.left),
-            parseFloat(marker.style.top)
-          );
-          if (targetElement) {
-            const rect = targetElement.getBoundingClientRect();
-            const newXPercent = ((parseFloat(marker.style.left) - rect.left) / rect.width) * 100;
-            const newYPercent = ((parseFloat(marker.style.top) - rect.top) / rect.height) * 100;
-            
-            // Update the comment object
-            comment.x_percent = newXPercent;
-            comment.y_percent = newYPercent;
-            comment.selector = this.getUniqueSelector(targetElement);
-            
-            // Send the updated comment to the server via WebSocket
-            this.ws.send(JSON.stringify({
-              type: 'updateComment',
-              projectId: this.clientId,
-              url: window.location.href,
-              comment: {
-                id: comment.id,
-                x_percent: newXPercent,
-                y_percent: newYPercent,
-                selector: comment.selector
-              },
-              token: this.token
-            }));
-            
-            updatePosition();
-          }
-        };
-      
-        marker.addEventListener('mousedown', onMouseDown);
-      
-        // Add touch event support
-        marker.addEventListener('touchstart', (e) => {
-          const touch = e.touches[0];
-          onMouseDown({ preventDefault: () => {}, clientX: touch.clientX, clientY: touch.clientY });
-        });
-      
-        document.addEventListener('touchmove', (e) => {
-          if (isDragging) {
-            const touch = e.touches[0];
-            onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
-          }
-        });
-      
-        document.addEventListener('touchend', onMouseUp);
-      },
 
       showNotification: function (message) {
         const notification = document.createElement('div');
@@ -1996,67 +1859,20 @@ try {
         }
       },
 
-      showInviteDialog: function () {
-        console.log('Showing invite dialog');
-        // Implement invite functionality
-      },
-
-      // // Add this new method
-      // loadTestData: async function () {
-      //   const token = this.token || localStorage.getItem('opv_token');
-      //   const res = await fetch('http://localhost:3003/comments',{
-      //     headers: {
-      //       'Authorization': `Bearer ${token}`
-      //     }
-      //   });
-      //   const comments = await res.json();
-      //   this.comments = comments;
-
-      //   console.log(comments);
-
-      //   console.log('Rendering test comments');
-      //   const allowedComments = this.comments.filter(comment => 
-      //   {
-      //     const commentUrl = new URL(comment.url);
-      //     console.log(commentUrl.origin, commentUrl.pathname);
-      //     return this.isPreviewDomain(commentUrl.origin) && this.isCurrentPathAllowed(commentUrl.pathname)
-      //   }
-      //   );
-      //   allowedComments.forEach(comment => {
-      //     this.renderComment(comment);
-      //   });
-
-      //   this.updateCommentsList();
-      // },
-
-    
-
-      updateCommentPosition: function (
-        marker,
-        detailsBox,
-        comment,
-        targetElement,
-      ) {
-        const rect = targetElement.getBoundingClientRect();
-        const x = rect.left + (rect.width * comment.x_percent) / 100;
-        const y = rect.top + (rect.height * comment.y_percent) / 100;
-
-        marker.style.left = `${x}px`;
-        marker.style.top = `${y}px`;
-
-        detailsBox.style.left = `${x + 40}px`;
-        detailsBox.style.top = `${y}px`;
-      },
       // Add this new function
       cancelAddingComment: function () {
         console.log('Cancelling comment addition');
         this.isSelectingCommentLocation = false;
         document.body.style.cursor = 'default';
-        document.removeEventListener('click', this.handleCommentPlacement);
 
         if (this.addCommentPopover) {
           this.addCommentPopover.remove();
           this.addCommentPopover = null;
+        }
+
+        if (this.overlay) {
+          this.overlay.remove();
+          this.overlay = null;
         }
       },
       // Add this new method
@@ -2073,7 +1889,7 @@ try {
           this.addCommentPopover.remove();
         }
         this.addCommentPopover = this.createPopover('Add Comment', [
-          { label: 'Click on the page to place your comment', type: 'message' },
+          { label: 'Click anywhere to place your comment (ESC to cancel)', type: 'message' },
         ]);
         this.addCommentPopover.style.display = 'block';
         this.positionPopover(this.addCommentPopover);
@@ -2081,50 +1897,65 @@ try {
         this.isSelectingCommentLocation = true;
         document.body.style.cursor = 'crosshair';
       
-        // Remove any existing click event listener
-        document.removeEventListener('click', this.handleCommentPlacement);
+        // Create and show the overlay with pointer events enabled
+        this.overlay = document.createElement('div');
+        this.overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: transparent;
+          z-index: 2147483646;
+          cursor: crosshair;
+        `;
+
+        // Add escape key handler specifically for the overlay
+        const escHandler = (e) => {
+          if (e.key === 'Escape') {
+            this.cancelAddingComment();
+            document.removeEventListener('keydown', escHandler);
+          }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        // Add click handler directly to overlay
+        this.overlay.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const x = e.clientX;
+          const y = e.clientY;
+          
+          // Clean up overlay and comment placement mode
+          this.cancelAddingComment();
+          document.removeEventListener('keydown', escHandler);
+          
+          // Show comment form at click position
+          if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
+            this.showCommentForm(x, y);
+          }
+        });
+
+        // Prevent any clicks from reaching elements below
+        this.overlay.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        document.body.appendChild(this.overlay);
       
-        // Add the click event listener
-        document.addEventListener('click', this.handleCommentPlacement);
-      
-        console.log('Comment placement listener added');
+        // Hide the addCommentPopover after a delay
+        setTimeout(() => {
+          if (this.addCommentPopover) {
+            this.addCommentPopover.remove();
+            this.addCommentPopover = null;
+          }
+        }, 2000);
       },
 
-      // Add this new method
-      handleCommentPlacement: function (e) {
-        console.log('handleCommentPlacement called', e);
-        if (!this.isSelectingCommentLocation) {
-          console.log('Not selecting comment location, returning');
-          return;
-        }
-      
-        // Prevent the click event from being triggered on the toolbar
-        if (e.target.closest('#opv-toolbar')) {
-          console.log('Click on toolbar, ignoring');
-          return;
-        }
-      
-        e.preventDefault();
-        e.stopPropagation();
-        this.cancelAddingComment(); // Use the new function here
-      
-        const x = e.clientX;
-        const y = e.clientY;
-      
-        console.log('Comment placement coordinates:', x, y);
-      
-        // Ensure x and y are numbers
-        if (
-          typeof x === 'number' &&
-          typeof y === 'number' &&
-          !isNaN(x) &&
-          !isNaN(y)
-        ) {
-          this.showCommentForm(x, y);
-        } else {
-          console.error('Invalid coordinates for comment placement', x, y);
-        }
-      },
+      // Remove the old click handler since we're handling clicks in the overlay
+      handleCommentPlacement: null,
 
       // Modify the showCommentForm method
       showCommentForm: function (x, y) {
@@ -2153,19 +1984,26 @@ try {
         );
 
         const tempComment = {
-          id: 'temp-' + Date.now(),
+          id: `temp-${crypto.randomUUID()}`, // Use UUID for consistency
           content: '',
           selector: selector,
           x_percent: x_percent,
           y_percent: y_percent,
           url: window.location.href,
-          user: {
-            name: 'John Doe',
-            avatar: 'https://i.pravatar.cc/150?img=8',
+          user: this.user || {
+            name: 'Anonymous',
+            avatar_url: 'https://i.pravatar.cc/150?img=8',
           },
-          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
           replies: [],
           color: '#1DA1F2',
+          page_title: document.title,
+          screen_width: Math.round(window.innerWidth),
+          screen_height: Math.round(window.innerHeight),
+          device_pixel_ratio: window.devicePixelRatio,
+          deployment_url: window.location.host,
+          user_agent: navigator.userAgent,
+          draft_mode: true // Mark as draft
         };
 
         this.renderComment(tempComment);
@@ -2249,17 +2087,18 @@ try {
                 ...tempComment,
                 content: commentText,
                 url: window.location.href,
+                draft_mode: false // Mark as published
               };
 
               console.log('New comment object to be sent to server:', newComment);
               this.ws.send(JSON.stringify({
                 type: 'newComment',
-                projectId: this.clientId,
+                projectId: this.projectId,
                 url: window.location.href,
                 comment: newComment,
                 token: this.token
               }));
-
+              
               this.comments.push(newComment);
 
               // Note: We don't add the comment to this.comments or render it here
@@ -2274,21 +2113,467 @@ try {
           detailsBox.appendChild(commentForm);
 
           detailsBox.style.display = 'block';
-          textarea.focus();
+          
+          // Save the current scroll position
+          const scrollPosition = window.pageYOffset;
+          
+          // Focus on the textarea without scrolling
+          textarea.focus({preventScroll: true});
+          
+          // Restore the scroll position
+          window.scrollTo(0, scrollPosition);
         }
       },
 
-      
+      // Add this function to the OpenPreview object
+      findTargetElement: function (selectorString) {
+        if (!selectorString) {
+          console.warn('No selector provided for findTargetElement');
+          return document.body;
+        }
 
-     
-      //#endregion
+        try {
+          // Try to find element using the selector directly
+          const element = document.querySelector(selectorString);
+          if (element) {
+            return element;
+          }
+
+          console.warn('Target element not found, falling back to body');
+          return document.body;
+        } catch (error) {
+          console.error('Error finding target element:', error);
+          return document.body;
+        }
+      },
+
+      // Update renderComment to use the new selector format
+      renderComment: function (comment) {
+        console.log('Rendering individual comment:', comment);
+        let targetElement = this.findTargetElement(comment.selector);
+        const webPath = window.location.pathname;
+        const commentPath = new URL(comment.url).pathname;
+      
+        console.log('commentPath', commentPath, 'webPath', webPath, 'isEqual', commentPath === webPath);
+        
+        if (webPath !== commentPath) {
+          console.log('Comment path does not match current page, skipping render');
+          return null;
+        }
+      
+        if (!targetElement) {
+          console.warn('Target element not found for comment:', comment);
+          targetElement = document.body; // Fallback to body if element not found
+        }
+      
+        const marker = document.createElement('div');
+        marker.classList.add('opv-comment-marker');
+        marker.dataset.commentId = comment.id;
+        
+        marker.style.cssText = `
+          position: absolute;
+          width: 32px;
+          height: 32px;
+          background-color: ${comment.resolved_at ? '#4CAF50' : '#1DA1F2'};
+          border-radius: 20% 100% 100% 100%;
+          cursor: pointer;
+          z-index: 2147483647;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 16px;
+          box-shadow: 0 2px 10px rgba(29, 161, 242, 0.3);
+          transition: none;
+          user-select: none;
+        `;
+      
+        // Use user avatar if available, otherwise use initials or a default icon
+        if (comment.user && comment.user.avatar_url) {
+          marker.innerHTML = `
+            <div style="width: 100%; height: 100%; padding: 4px;">
+              <div style="background-image: url(${comment.user.avatar_url}); background-size: cover; background-position: center; background-repeat: no-repeat; width: 100%; height: 100%; border-radius: 50%;"></div>
+            </div>
+          `;
+        } else {
+          // Use initials or a default icon
+          const initials = comment.user && comment.user.name ? comment.user.name.charAt(0).toUpperCase() : '?';
+          marker.innerHTML = `
+            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+              ${initials}
+            </div>
+          `;
+        }
+      
+        // Position the marker
+        const rect = targetElement.getBoundingClientRect();
+        const x = rect.left + (comment.x_percent * rect.width);
+        const y = rect.top + (comment.y_percent * rect.height);
+        
+        marker.style.left = `${x + window.scrollX}px`;
+        marker.style.top = `${y + window.scrollY}px`;
+      
+        document.body.appendChild(marker);
+      
+        // Create details box with new device icon feature
+        const detailsBox = document.createElement('div');
+        detailsBox.classList.add('opv-comment-details');
+        detailsBox.dataset.commentId = comment.id;
+        detailsBox.style.cssText = `
+          position: absolute;
+          width: 300px;
+          background-color: white;
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          z-index: 2147483648;
+          display: none;
+          max-height: 400px;
+          overflow-y: auto;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        `;
+      
+        // Create header container
+        const header = document.createElement('div');
+        header.style.cssText = `
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 12px;
+        `;
+      
+        // Create user info container
+        const userInfo = document.createElement('div');
+        userInfo.style.cssText = `
+          display: flex;
+          align-items: center;
+          flex: 1;
+        `;
+      
+        const avatar = document.createElement('img');
+        avatar.src = comment.user && comment.user.avatar_url ? comment.user.avatar_url : '';
+        avatar.style.cssText = `
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          margin-right: 8px;
+          ${!avatar.src ? 'display: none;' : ''}
+        `;
+      
+        const userDetails = document.createElement('div');
+        userDetails.innerHTML = `
+          <div style="font-weight: bold;">${comment.user && comment.user.name || 'Anonymous'}</div>
+          <div style="font-size: 12px; color: #657786;">${new Date(comment.created_at).toLocaleString()}</div>
+        `;
+      
+        // Create device icon
+        const deviceIcon = document.createElement('div');
+        deviceIcon.style.cssText = `
+          margin-left: 8px;
+          color: #657786;
+          display: flex;
+          align-items: center;
+        `;
+      
+        const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(comment.user_agent);
+        deviceIcon.innerHTML = isMobile ? 
+          `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12" y2="18"/>
+          </svg>` :
+          `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>`;
+        deviceIcon.title = isMobile ? 'Mobile Device' : 'Desktop Device';
+      
+        // Assemble the header
+        userInfo.appendChild(avatar);
+        userInfo.appendChild(userDetails);
+        header.appendChild(userInfo);
+        header.appendChild(deviceIcon);
+        detailsBox.appendChild(header);
+      
+        // Add comment content
+        const content = document.createElement('div');
+        content.style.cssText = `
+          margin-bottom: 16px;
+          font-size: 14px;
+          line-height: 1.4;
+          color: #1f2937;
+        `;
+        content.textContent = comment.content;
+        detailsBox.appendChild(content);
+      
+        // Add replies container
+        const repliesContainer = document.createElement('div');
+        repliesContainer.classList.add('replies-container');
+        if (comment.replies && comment.replies.length > 0) {
+          comment.replies.forEach(reply => {
+            const replyElement = this.createReplyElement(reply);
+            repliesContainer.appendChild(replyElement);
+          });
+        }
+        detailsBox.appendChild(repliesContainer);
+      
+        // Add reply form
+        const replyForm = this.createReplyForm(comment.id);
+        detailsBox.appendChild(replyForm);
+      
+        document.body.appendChild(detailsBox);
+      
+        // Smart positioning of the details box
+              
+        // Improved hover functionality
+        let showTimeout, hideTimeout;
+        const showDelay = 100; // Reduced delay for showing
+        const hideDelay = 300; // Delay before hiding
+
+        const showDetailsBox = () => {
+          clearTimeout(hideTimeout);
+          showTimeout = setTimeout(() => {
+            const allDetails = document.querySelectorAll('.opv-comment-details');
+            allDetails.forEach(detail => {
+              if (detail !== detailsBox) {
+                detail.style.display = 'none';
+              }
+            });
+            detailsBox.style.display = 'block';
+            this.positionDetailsBox(marker, detailsBox);
+          }, showDelay);
+        };
+
+        const hideDetailsBox = () => {
+          clearTimeout(showTimeout);
+          hideTimeout = setTimeout(() => {
+            if (!detailsBox.matches(':hover') && !isUserTyping(detailsBox)) {
+              detailsBox.style.display = 'none';
+            }
+          }, hideDelay);
+        };
+
+        // Helper function to check if user is typing in the details box
+        const isUserTyping = (element) => {
+          const activeElement = document.activeElement;
+          return activeElement && element.contains(activeElement) && 
+                 (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+        };
+
+        marker.addEventListener('mouseenter', showDetailsBox);
+        marker.addEventListener('mouseleave', hideDetailsBox);
+
+        detailsBox.addEventListener('mouseenter', () => {
+          clearTimeout(hideTimeout);
+        });
+
+        detailsBox.addEventListener('mouseleave', () => {
+          hideTimeout = setTimeout(() => {
+            if (!marker.matches(':hover') && !isUserTyping(detailsBox)) {
+              detailsBox.style.display = 'none';
+            }
+          }, hideDelay);
+        });
+
+        // Update position on window resize
+        window.addEventListener('resize', () => {
+          if (detailsBox.style.display === 'block') {
+            this.positionDetailsBox(marker, detailsBox);
+          }
+        });
+
+        // Make the comment draggable
+        this.makeCommentDraggable(marker, detailsBox, comment);
+
+        return { marker, detailsBox };
+      },
+
+      positionDetailsBox: function(marker, detailsBox) {
+        const markerRect = marker.getBoundingClientRect();
+        const detailsRect = detailsBox.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+      
+        // Horizontal positioning
+        let leftPosition;
+        if (viewportWidth - markerRect.right >= detailsRect.width + 10) {
+          // Position to the right if there's enough space
+          leftPosition = markerRect.right + scrollX + 10;
+        } else if (markerRect.left >= detailsRect.width + 10) {
+          // Position to the left if there's not enough space on the right
+          leftPosition = markerRect.left + scrollX - detailsRect.width - 10;
+        } else {
+          // Center horizontally if no space on sides
+          leftPosition = scrollX + (viewportWidth - detailsRect.width) / 2;
+        }
+      
+        // Vertical positioning
+        let topPosition = markerRect.top + scrollY; // Align top of details box with top of marker
+      
+        // Ensure the details box doesn't go off-screen vertically
+        if (topPosition + detailsRect.height > scrollY + viewportHeight) {
+          // If it goes off the bottom, align the bottom of the details box with the bottom of the viewport
+          topPosition = scrollY + viewportHeight - detailsRect.height - 10;
+        }
+      
+        // Apply the calculated position
+        detailsBox.style.left = `${leftPosition}px`;
+        detailsBox.style.top = `${topPosition}px`;
+      },
+      
+      // Update calculateRelativePosition to use the new selector format
+      calculateRelativePosition: function(element, x, y) {
+        const rect = element.getBoundingClientRect();
+        
+        // Calculate relative positions as decimals (0-1)
+        const x_percent = (x - rect.left) / rect.width;
+        const y_percent = (y - rect.top) / rect.height;
+
+        return {
+          selector: this.getUniqueSelector(element),
+          x_percent: x_percent,
+          y_percent: y_percent,
+          page_title: document.title,
+          screen_width: Math.round(window.innerWidth),
+          screen_height: Math.round(window.innerHeight),
+          device_pixel_ratio: window.devicePixelRatio,
+          deployment_url: window.location.host,
+          user_agent: navigator.userAgent,
+          draft_mode: false,
+          node_id: null
+        };
+      },
+
+      makeCommentDraggable: function (marker, detailsBox, comment, updatePosition) {
+        let isDragging = false;
+        let startX, startY;
+        let startMarkerLeft, startMarkerTop;
+        let targetElement;
+      
+        const onMouseDown = (e) => {
+          if (e.button !== 0) return; // Only handle left mouse button
+          e.preventDefault();
+          e.stopPropagation();
+          
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          
+          const markerRect = marker.getBoundingClientRect();
+          startMarkerLeft = markerRect.left + window.scrollX;
+          startMarkerTop = markerRect.top + window.scrollY;
+          
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        };
+      
+        const onMouseMove = (e) => {
+          if (!isDragging) return;
+          
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          
+          const newLeft = startMarkerLeft + dx;
+          const newTop = startMarkerTop + dy;
+          
+          marker.style.left = `${newLeft}px`;
+          marker.style.top = `${newTop}px`;
+          
+          if (detailsBox && detailsBox.style.display === 'block') {
+            detailsBox.style.left = `${newLeft + 40}px`;
+            detailsBox.style.top = `${newTop}px`;
+          }
+        };
+      
+        const onMouseUp = (e) => {
+          if (!isDragging) return;
+          isDragging = false;
+          
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          
+          // Get the element at the current position
+          marker.style.display = 'none';
+          targetElement = document.elementFromPoint(e.clientX, e.clientY);
+          marker.style.display = 'flex';
+          
+          if (targetElement) {
+            const rect = targetElement.getBoundingClientRect();
+            const markerRect = marker.getBoundingClientRect();
+            
+            // Calculate new percentages
+            const newXPercent = (markerRect.left + window.scrollX - (rect.left + window.scrollX)) / rect.width;
+            const newYPercent = (markerRect.top + window.scrollY - (rect.top + window.scrollY)) / rect.height;
+            
+            // Update comment object
+            comment.x_percent = newXPercent;
+            comment.y_percent = newYPercent;
+            comment.selector = this.getUniqueSelector(targetElement);
+            
+            // Update position immediately
+            this.updateCommentPosition(marker, detailsBox, comment, targetElement);
+            
+            // Send update to server if not a temporary comment
+            if (!comment.id.toString().startsWith('temp-')) {
+              this.ws.send(JSON.stringify({
+                type: 'updateComment',
+                projectId: this.projectId,
+                url: window.location.href,
+                comment: {
+                  id: comment.id,
+                  x_percent: newXPercent,
+                  y_percent: newYPercent,
+                  selector: comment.selector
+                },
+                token: this.token
+              }));
+            }
+          }
+        };
+      
+        marker.addEventListener('mousedown', onMouseDown);
+        
+        // Touch support
+        marker.addEventListener('touchstart', (e) => {
+          const touch = e.touches[0];
+          onMouseDown({ 
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation(),
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            button: 0
+          });
+        });
+      
+        document.addEventListener('touchmove', (e) => {
+          if (isDragging) {
+            const touch = e.touches[0];
+            onMouseMove({
+              clientX: touch.clientX,
+              clientY: touch.clientY
+            });
+          }
+        });
+      
+        document.addEventListener('touchend', (e) => {
+          if (isDragging) {
+            const touch = e.changedTouches[0];
+            onMouseUp({
+              clientX: touch.clientX,
+              clientY: touch.clientY
+            });
+          }
+        });
+      }
     };
 
     //#region Init OPV
     // Initialize OpenPreview immediately
     console.log('Initializing OpenPreview');
     OpenPreview.init({
-      clientId: window.opvClientId, // We'll set this in the HTML
+      projectId: document.currentScript.getAttribute('data-project-id')
     });
 
     // Expose OpenPreview to the global scope if needed
