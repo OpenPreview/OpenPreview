@@ -47,17 +47,17 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Your Organizations</h1>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> Add Organization
         </Button>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-wrap gap-4">
         {organizations.map((org: Organization) => (
           <Link href={`/${org.slug}`} key={org.id}>
-            <Card className="transition-shadow duration-200 hover:shadow-lg">
+            <Card className="w-96 transition-shadow duration-200 hover:shadow-lg">
               <CardHeader>
                 <CardTitle>{org.name}</CardTitle>
               </CardHeader>

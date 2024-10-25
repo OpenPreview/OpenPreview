@@ -3,6 +3,13 @@ import { cn } from '@openpreview/ui/lib/utils';
 import { Inter } from 'next/font/google';
 import { Header } from 'src/components/dashboard/Header';
 import { Sidebar } from 'src/components/dashboard/Sidebar';
+import {
+  SidebarProvider,
+  SidebarInset,
+} from '@openpreview/ui/components/sidebar';
+import { AppSidebar } from '@openpreview/ui/components/sidebar/app-sidebar';
+import { fetchOrganizations } from '@openpreview/db/hooks/fetchOrganizations';
+import { useUser } from '@openpreview/db/hooks/useUser/server';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -10,7 +17,13 @@ const inter = Inter({
   display: 'swap',
 });
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const organizations = await fetchOrganizations();
+  const { user } = await useUser();
   return (
     <body
       className={cn(
@@ -18,16 +31,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         'font-inter bg-background text-foreground antialiased',
       )}
     >
-      <div className="flex h-screen">
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
+      <SidebarProvider>
+        <AppSidebar
+          orgs={organizations}
+          user={{
+            name: user?.name,
+            email: user?.email,
+            avatar: user?.avatar_url,
+          }}
+        />
+
+        <SidebarInset>
           <Header />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-            {children}
-          </main>
-        </div>
-      </div>
-      <Toaster />
+          <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
+          <Toaster />
+        </SidebarInset>
+      </SidebarProvider>
     </body>
   );
 }

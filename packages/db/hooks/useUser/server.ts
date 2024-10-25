@@ -1,4 +1,3 @@
-
 import { createClient } from '@openpreview/db/server';
 import { Tables } from '@openpreview/supabase';
 import { redirect } from 'next/navigation';
@@ -23,7 +22,7 @@ export async function useUser() {
 
     if (error) throw error;
 
-    return { user: userData as Tables<'users'>, supabase };
+    return { user: userData, supabase };
   } catch (error) {
     console.error('Error fetching user:', error);
     redirect('/login');
