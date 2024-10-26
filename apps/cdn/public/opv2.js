@@ -1,3 +1,4 @@
+'use strict';
 try {
   (function () {
     console.log('OpenPreview script starting execution');
@@ -6,7 +7,10 @@ try {
     const OpenPreview = {
       //#region Vars
       projectId: null,
+      maxRetries: 10,
+      activeConnection: false,
       comments: [],
+      keysPressed: new Set(),
       toolbar: null,
       commentForm: null,
       commentsList: null,
@@ -38,9 +42,11 @@ try {
         const currentPath = window.location.pathname;
         return currentPath === path;
       },
-      handleKeyboardShortcuts: function(e) {
+      handleKeyboardShortcuts: function (e) {
         // Don't trigger shortcuts when typing in input/textarea
-        if (e.target.matches('input, textarea')) return;
+        this.keysPressed.add(e.key.toLowerCase());
+        if (e.target.matches('input, textarea') || this.keysPressed.size > 1)
+          return;
 
         switch (e.key.toLowerCase()) {
           case 'c':
@@ -64,11 +70,16 @@ try {
               this.toggleCommentsList();
             }
             // Close any open comment details
-            document.querySelectorAll('.opv-comment-details').forEach(detail => {
-              detail.style.display = 'none';
-            });
+            document
+              .querySelectorAll('.opv-comment-details')
+              .forEach(detail => {
+                detail.style.display = 'none';
+              });
             break;
         }
+      },
+      handleKeyRemove: function (e) {
+        this.keysPressed.delete(e.key.toLowerCase());
       },
       //#region Init Func
       init: function (config) {
@@ -77,14 +88,15 @@ try {
 
         // Bind only the methods that exist and we need
         this.handleKeyboardShortcuts = this.handleKeyboardShortcuts.bind(this);
+        this.handleKeyRemove = this.handleKeyRemove.bind(this);
         this.startAddingComment = this.startAddingComment.bind(this);
         this.showCommentForm = this.showCommentForm.bind(this);
 
         // Add keyboard shortcut listener early
         document.addEventListener('keydown', this.handleKeyboardShortcuts);
+        document.addEventListener('keyup', this.handleKeyRemove);
 
         const weborigin = window.location.origin;
-        console.log('weborigin', weborigin);
         const isAllowed = this.isPreviewDomain(weborigin);
 
         if (!isAllowed) {
@@ -136,12 +148,21 @@ try {
             }
           });
         }, 5000); // Check every 5 seconds
+        if (activeConnection)
+          setInterval(() => {
+            this.ws.send(
+              JSON.stringify({
+                type: 'ping',
+                projectId: this.projectId,
+                url: window.location.href,
+              }),
+            );
+          }, [500]);
 
         window.addEventListener('resize', this.handleResize.bind(this));
       },
-     
 
-      initializeComponents: function() {
+      initializeComponents: function () {
         this.createToolbar();
         this.createCommentForm();
         this.createCommentsList();
@@ -150,22 +171,22 @@ try {
       },
       //#endregion
 
-      login: async function() {
+      login: async function () {
         const width = 500;
         const height = 600;
-        const left = (window.screen.width / 2) - (width / 2);
-        const top = (window.screen.height / 2) - (height / 2);
-        
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+
         const loginWindow = window.open(
           'http://localhost:3002/auth/login',
           'OpenPreview Login',
-          `width=${width},height=${height},left=${left},top=${top}`
+          `width=${width},height=${height},left=${left},top=${top}`,
         );
-      
+
         return new Promise((resolve, reject) => {
-          const handleMessage = (event) => {
+          const handleMessage = event => {
             if (event.origin !== 'http://localhost:3002') return;
-      
+
             if (event.data.type === 'LOGIN_SUCCESS') {
               this.token = event.data.token;
               this.user = event.data.user;
@@ -176,9 +197,9 @@ try {
               resolve(event.data);
             }
           };
-      
+
           window.addEventListener('message', handleMessage);
-      
+
           loginWindow.onclose = () => {
             window.removeEventListener('message', handleMessage);
             reject(new Error('Login window closed'));
@@ -186,15 +207,18 @@ try {
         });
       },
 
-      onLoginSuccess: function() {
+      onLoginSuccess: function () {
         console.log('Login successful');
-        this.showNotification('Logged in successfully!');
+        this.showNotification({
+          message: 'Logged in successfully!',
+        });
         // Update UI or perform actions after successful login
         this.updateLoginState();
+        this.initWebSocket();
         this.loadComments();
       },
-    
-      updateLoginState: function() {
+
+      updateLoginState: function () {
         if (this.token) {
           // User is logged in, show all toolbar buttons
           this.toolbar.innerHTML = ''; // Clear existing content
@@ -215,36 +239,39 @@ try {
           this.toolbar.appendChild(this.loginButton);
         }
       },
-    
-      logout: function() {
+
+      logout: function () {
         this.token = null;
         // Remove the token cookie
         this.setCookie('opv_token', '', -1); // Expire the cookie
-        this.showNotification('Logged out successfully!');
+        this.showNotification({
+          message: 'Logged out successfully!',
+        });
         this.updateLoginState();
         this.comments = []; // Clear comments
         this.renderComments(); // Re-render (clear) comments
       },
 
       // Add this new helper function to set cookies
-      setCookie: function(name, value, days) {
-        let expires = "";
+      setCookie: function (name, value, days) {
+        let expires = '';
         if (days) {
           const date = new Date();
-          date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-          expires = "; expires=" + date.toUTCString();
+          date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+          expires = '; expires=' + date.toUTCString();
         }
-        document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+        document.cookie = name + '=' + (value || '') + expires + '; path=/';
       },
 
       // Add this new helper function to get cookies
-      getCookie: function(name) {
-        const nameEQ = name + "=";
+      getCookie: function (name) {
+        const nameEQ = name + '=';
         const ca = document.cookie.split(';');
-        for(let i = 0; i < ca.length; i++) {
+        for (let i = 0; i < ca.length; i++) {
           let c = ca[i];
           while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-          if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+          if (c.indexOf(nameEQ) == 0)
+            return c.substring(nameEQ.length, c.length);
         }
         return null;
       },
@@ -261,15 +288,17 @@ try {
         try {
           const res = await fetch(`http://localhost:3003/comments`, {
             headers: {
-              'Authorization': `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
               'X-Project-ID': this.projectId,
               'X-Domain': window.location.origin,
-            }
+            },
           });
 
           if (!res.ok) {
             if (res.status === 401) {
-              this.showNotification('Session expired. Please log in again.');
+              this.showNotification({
+                message: 'Session expired. Please log in again.',
+              });
               this.logout();
               return;
             }
@@ -286,7 +315,9 @@ try {
           }
         } catch (error) {
           console.error('Error loading comments:', error);
-          this.showNotification('Failed to load comments. Please try again.');
+          this.showNotification({
+            message: 'Failed to load comments. Please try again.',
+          });
         }
       },
 
@@ -296,40 +327,70 @@ try {
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');
-          this.ws.send(JSON.stringify({
-            type: 'join',
-            projectId: this.projectId,
-            url: window.location.href
-          }));
+          console.log(this.projectId, window.location.href, 'ioebbebe');
+          this.ws.send(
+            JSON.stringify({
+              type: 'join',
+              projectId: this.projectId,
+              url: window.location.href,
+            }),
+          );
         };
-    
-        this.ws.onmessage = (event) => {
+
+        this.ws.onmessage = event => {
           const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
           if (data.type === 'newComment') {
             console.log('Received new comment:', data.comment);
             this.comments.push(data.comment);
             this.renderComment(data.comment);
             this.updateCommentsList();
+          } else if (data.type === 'updateComment') {
+            this.comments = this.comments.map(val => {
+              if (val.id === data.comment.id) {
+                console.log(val, data.comment);
+                return data.comment;
+              }
+              return val;
+            });
+            this.renderComments();
           } else if (data.type === 'error') {
             console.error('WebSocket error:', data.message);
-            this.showNotification(data.message, 'error');
+            this.showNotification({
+              message: data.message,
+              variant: 'destructive',
+            });
+          } else if (data.type === 'ping') {
           }
         };
-    
-        this.ws.onerror = (error) => {
+
+        this.ws.onerror = error => {
           console.error('WebSocket error:', error);
         };
-    
+
         this.ws.onclose = () => {
           console.log('WebSocket disconnected');
+          this.activeConnection = false;
           // Implement reconnection logic here if needed
+          if (this.maxRetries > 0) {
+            setTimeout(() => {
+              this.initWebSocket();
+            }, [1000]);
+            this.maxRetries--;
+          } else if (this.maxRetries === 0 && this.maxRetries !== undefined) {
+            this.showNotification({
+              message:
+                'There was an error connecting to websocket. Please close out of the website and reopen. If the problem continues, contact support.',
+              variant: 'destructive',
+              persist: true,
+            });
+            this.maxRetries = undefined;
+          }
         };
       },
 
-      verifyToken: async function() {
+      verifyToken: async function () {
         const token = this.token || this.getCookie('opv_token');
-       
+
         if (!token) {
           console.log('No token found');
           return false;
@@ -340,7 +401,7 @@ try {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
+              Authorization: `Bearer ${token}`,
             },
           });
 
@@ -370,8 +431,10 @@ try {
       renderComments: function () {
         console.log('Rendering all comments:', this.comments);
         // Clear existing comment markers and details
-        document.querySelectorAll('.opv-comment-marker, .opv-comment-details').forEach(el => el.remove());
-        
+        document
+          .querySelectorAll('.opv-comment-marker, .opv-comment-details')
+          .forEach(el => el.remove());
+
         this.comments.forEach(comment => {
           console.log('Rendering comment:', comment);
           this.renderComment(comment);
@@ -379,18 +442,23 @@ try {
         this.updateCommentsList();
       },
 
-   
-
-      updateCommentPosition: function(marker, detailsBox, comment, targetElement) {
+      updateCommentPosition: function (
+        marker,
+        detailsBox,
+        comment,
+        targetElement,
+      ) {
         if (!marker || !targetElement) return;
 
         const rect = targetElement.getBoundingClientRect();
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollX =
+          window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY =
+          window.pageYOffset || document.documentElement.scrollTop;
 
         // Calculate absolute position based on percentages
-        const x = rect.left + scrollX + (rect.width * comment.x_percent);
-        const y = rect.top + scrollY + (rect.height * comment.y_percent);
+        const x = rect.left + scrollX + rect.width * comment.x_percent;
+        const y = rect.top + scrollY + rect.height * comment.y_percent;
 
         // Update marker position
         marker.style.position = 'absolute';
@@ -404,13 +472,15 @@ try {
         }
       },
 
-      positionDetailsBox: function(marker, detailsBox) {
+      positionDetailsBox: function (marker, detailsBox) {
         const markerRect = marker.getBoundingClientRect();
         const detailsRect = detailsBox.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollX =
+          window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY =
+          window.pageYOffset || document.documentElement.scrollTop;
 
         // Horizontal positioning
         let leftPosition;
@@ -498,13 +568,15 @@ try {
           };
 
           // Send the reply to the server
-          this.ws.send(JSON.stringify({
-            type: 'newReply',
-            projectId: this.projectId,
-            commentId: commentId,
-            reply: reply,
-            token: this.token
-          }));
+          this.ws.send(
+            JSON.stringify({
+              type: 'newReply',
+              projectId: this.projectId,
+              commentId: commentId,
+              reply: reply,
+              token: this.token,
+            }),
+          );
 
           // Optimistically add the reply locally
           if (!comment.replies) {
@@ -514,7 +586,9 @@ try {
 
           this.updateCommentDetails(comment);
           this.updateCommentsList();
-          this.showNotification('Reply added successfully!');
+          this.showNotification({
+            message: 'Reply added successfully!',
+          });
         }
       },
 
@@ -600,9 +674,9 @@ try {
         console.log('Creating toolbar...');
         this.toolbar = document.createElement('div');
         this.toolbar.id = 'opv-toolbar';
-        
+
         const defaultHeight = '36px'; // Slightly reduced height
-        
+
         this.toolbar.style.cssText = `
           position: fixed !important;
           bottom: 20px !important;
@@ -610,12 +684,11 @@ try {
           transform: translateX(-50%) !important;
           height: ${defaultHeight} !important;
           background-color: rgba(33, 47, 90, 0.9) !important;
-          border: 1px solid rgb(33, 47, 90) !important;
-          border-radius: 18px !important;
+          border: 2px solid rgb(33, 47, 90) !important;
+          border-radius: 9999px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
-          padding: 0 4px !important;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
           z-index: 2147483646 !important;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
@@ -664,7 +737,7 @@ try {
       createToolbarButton: function (icon, title) {
         const button = document.createElement('button');
         button.title = title;
-        
+
         // Create tooltip element
         const tooltip = document.createElement('div');
         tooltip.style.cssText = `
@@ -709,18 +782,18 @@ try {
           align-items: center !important;
           justify-content: center !important;
           transition: all 0.3s ease !important;
-          border-radius: 50% !important;
+          border-radius: 9999px !important;
           margin: 0 2px !important;
         `;
 
         button.innerHTML = this.getIconSVG(icon);
-        
+
         // Show/hide tooltip on hover
         button.addEventListener('mouseenter', () => {
           button.style.backgroundColor = 'rgba(255, 255, 255, 0.1) !important';
           tooltip.style.opacity = '1';
         });
-        
+
         button.addEventListener('mouseleave', () => {
           button.style.backgroundColor = 'transparent !important';
           tooltip.style.opacity = '0';
@@ -744,7 +817,9 @@ try {
             button.addEventListener('click', () => this.showSettings());
             break;
           case 'drag':
-            button.addEventListener('mousedown', () => this.makeDraggable(this.toolbar));
+            button.addEventListener('mousedown', () =>
+              this.makeDraggable(this.toolbar),
+            );
             break;
         }
 
@@ -801,8 +876,8 @@ try {
         });
         return btn;
       },
-      
-      createLoginButton: function() {
+
+      createLoginButton: function () {
         const loginButton = document.createElement('button');
         loginButton.textContent = 'Login';
         loginButton.style.cssText = `
@@ -820,7 +895,7 @@ try {
           white-space: nowrap;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         `;
-        
+
         // Add hover state for login button
         loginButton.addEventListener('mouseenter', () => {
           loginButton.style.backgroundColor = '#1991db';
@@ -831,7 +906,7 @@ try {
           loginButton.style.backgroundColor = '#1DA1F2';
           loginButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
         });
-        
+
         loginButton.addEventListener('click', () => this.login());
         return loginButton;
       },
@@ -913,21 +988,21 @@ try {
         document.body.appendChild(this.commentForm);
       },
 
-      makeDraggable: function(element) {
+      makeDraggable: function (element) {
         let isDragging = false;
         let startX, startY;
         let startLeft, startBottom;
-      
+
         const dragHandle = element.querySelector('button[title="Drag"]');
         if (!dragHandle) return;
-      
+
         dragHandle.addEventListener('mousedown', startDragging);
         dragHandle.addEventListener('touchstart', startDragging);
-      
+
         function startDragging(e) {
           e.preventDefault();
           isDragging = true;
-          
+
           if (e.type === 'mousedown') {
             startX = e.clientX;
             startY = e.clientY;
@@ -935,19 +1010,19 @@ try {
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
           }
-      
+
           startLeft = element.offsetLeft;
           startBottom = parseInt(element.style.bottom, 10) || 20; // Default to 20px if not set
-      
+
           document.addEventListener('mousemove', drag);
           document.addEventListener('touchmove', drag);
           document.addEventListener('mouseup', stopDragging);
           document.addEventListener('touchend', stopDragging);
         }
-      
+
         function drag(e) {
           if (!isDragging) return;
-      
+
           let clientX, clientY;
           if (e.type === 'mousemove') {
             clientX = e.clientX;
@@ -956,18 +1031,18 @@ try {
             clientX = e.touches[0].clientX;
             clientY = e.touches[0].clientY;
           }
-      
+
           const deltaX = clientX - startX;
           const deltaY = startY - clientY;
-      
+
           const newLeft = startLeft + deltaX;
           const newBottom = startBottom + deltaY;
-      
+
           element.style.left = `${newLeft}px`;
           element.style.bottom = `${newBottom}px`;
           element.style.transform = 'none';
         }
-      
+
         function stopDragging() {
           isDragging = false;
           document.removeEventListener('mousemove', drag);
@@ -976,7 +1051,7 @@ try {
           document.removeEventListener('touchend', stopDragging);
         }
       },
-      
+
       togglePopover: function (popover) {
         console.log('Toggling popover', popover);
         if (popover.style.display === 'none' || popover.style.display === '') {
@@ -987,8 +1062,7 @@ try {
         }
         console.log('Popover display after toggle:', popover.style.display);
       },
-      
-      
+
       // Update the showSettings function to use togglePopover
       showSettings: function () {
         console.log('showSettings called');
@@ -997,10 +1071,7 @@ try {
         }
         this.togglePopover(this.settingsPopover);
       },
-      
-      
-      
-      
+
       // Update the toggleMenu function to use togglePopover
       toggleMenu: function () {
         if (!this.menuPopover) {
@@ -1026,13 +1097,16 @@ try {
         });
 
         document.addEventListener('click', e => {
-          if (this.settingsPopover && !this.settingsPopover.contains(e.target) && !e.target.closest('button[title="Settings"]')) {
+          if (
+            this.settingsPopover &&
+            !this.settingsPopover.contains(e.target) &&
+            !e.target.closest('button[title="Settings"]')
+          ) {
             this.settingsPopover.style.display = 'none';
           }
         });
       },
 
-     
       hideCommentForm: function () {
         this.commentForm.style.display = 'none';
       },
@@ -1042,50 +1116,58 @@ try {
         const textarea = this.commentForm.querySelector('textarea');
         const commentText = textarea.value.trim();
         if (!commentText) return;
-    
+
         const targetElement = this.getTargetElement();
         if (!targetElement) {
-            console.error('Unable to find target element for comment');
-            return;
+          console.error('Unable to find target element for comment');
+          return;
         }
-    
+
         const x = parseFloat(this.commentForm.dataset.x);
         const y = parseFloat(this.commentForm.dataset.y);
-        
-        const positionData = this.calculateRelativePosition(targetElement, x, y);
+
+        const positionData = this.calculateRelativePosition(
+          targetElement,
+          x,
+          y,
+        );
 
         const comment = {
-            content: commentText,
-            selector: positionData.selector,
-            x_percent: positionData.x_percent,
-            y_percent: positionData.y_percent,
-            url: window.location.href,
-            page_title: positionData.page_title,
-            screen_width: positionData.screen_width,
-            screen_height: positionData.screen_height,
-            device_pixel_ratio: positionData.device_pixel_ratio,
-            deployment_url: positionData.deployment_url,
-            user_agent: positionData.user_agent,
-            draft_mode: positionData.draft_mode,
-            node_id: positionData.node_id
+          content: commentText,
+          selector: positionData.selector,
+          x_percent: positionData.x_percent,
+          y_percent: positionData.y_percent,
+          url: window.location.href,
+          page_title: positionData.page_title,
+          screen_width: positionData.screen_width,
+          screen_height: positionData.screen_height,
+          device_pixel_ratio: positionData.device_pixel_ratio,
+          deployment_url: positionData.deployment_url,
+          user_agent: positionData.user_agent,
+          draft_mode: positionData.draft_mode,
+          node_id: positionData.node_id,
         };
-  
+
         console.log('Comment object to be sent to server:', comment);
 
-        this.ws.send(JSON.stringify({
+        this.ws.send(
+          JSON.stringify({
             type: 'newComment',
             projectId: this.projectId,
             url: window.location.href,
             comment: comment,
-            token: this.token
-        }));
-    
+            token: this.token,
+          }),
+        );
+
         this.hideCommentForm();
         textarea.value = '';
-        this.showNotification('Comment added successfully!');
+        this.showNotification({
+          message: 'Comment added successfully!',
+        });
       },
 
-      getUniqueSelector: function(element) {
+      getUniqueSelector: function (element) {
         if (!element || element === document.body) {
           return 'body';
         }
@@ -1094,16 +1176,21 @@ try {
         let current = element;
 
         while (current) {
-          if (current === document.body || current === document.documentElement) {
+          if (
+            current === document.body ||
+            current === document.documentElement
+          ) {
             break;
           }
 
           let selector = current.tagName.toLowerCase();
-          
+
           // Add nth-of-type for elements with same tag siblings
           if (current.parentNode) {
             const siblings = Array.from(current.parentNode.children);
-            const similarSiblings = siblings.filter(e => e.tagName === current.tagName);
+            const similarSiblings = siblings.filter(
+              e => e.tagName === current.tagName,
+            );
             if (similarSiblings.length > 1) {
               const index = similarSiblings.indexOf(current) + 1;
               selector += `:nth-of-type(${index})`;
@@ -1139,9 +1226,9 @@ try {
         }
       },
 
-      calculateRelativePosition: function(element, x, y) {
+      calculateRelativePosition: function (element, x, y) {
         const rect = element.getBoundingClientRect();
-        
+
         const x_percent = (x - rect.left) / rect.width;
         const y_percent = (y - rect.top) / rect.height;
 
@@ -1156,7 +1243,7 @@ try {
           deployment_url: window.location.host,
           user_agent: navigator.userAgent,
           draft_mode: false,
-          node_id: null
+          node_id: null,
         };
       },
 
@@ -1184,15 +1271,26 @@ try {
         }
       },
 
-
-      showNotification: function (message) {
+      showNotification: function ({ message, variant = 'default', persist }) {
         const notification = document.createElement('div');
         notification.textContent = message;
+        const colorVariant = () => {
+          switch (variant) {
+            case 'destructive':
+              return '#c70000';
+            default:
+              return '#4CAF50';
+          }
+        };
+        console.log(message, colorVariant(), persist);
+
         notification.style.cssText = `
           position: fixed;
           top: 20px;
           right: 20px;
-          background-color: #4CAF50;
+          max-width: 350px;
+          flex-wrap: wrap;
+          background-color: ${colorVariant()};
           color: white;
           padding: 15px;
           border-radius: 5px;
@@ -1210,20 +1308,22 @@ try {
         `;
 
         const style = document.createElement('style');
-        style.textContent = `
-          @keyframes fadeInOut {
-            0% { opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { opacity: 0; }
-          }
-        `;
+        if (!persist)
+          style.textContent = `
+            @keyframes fadeInOut {
+              0% { opacity: 0; }
+              10% { opacity: 1; }
+              90% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+          `;
         document.head.appendChild(style);
 
         document.body.appendChild(notification);
-        setTimeout(() => {
-          document.body.removeChild(notification);
-        }, 3000);
+        if (!persist)
+          setTimeout(() => {
+            document.body.removeChild(notification);
+          }, 3000);
       },
 
       createCommentsList: function () {
@@ -1290,34 +1390,34 @@ try {
         });
         commentElement.addEventListener('click', () => {
           const marker = document.querySelector(
-            `.opv-comment-marker[data-comment-id="${comment.id}"]`
+            `.opv-comment-marker[data-comment-id="${comment.id}"]`,
           );
           if (marker) {
             // Scroll to the marker
             marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             // Highlight the marker temporarily
             const originalColor = marker.style.backgroundColor;
             marker.style.backgroundColor = '#FFD700'; // Bright yellow
             setTimeout(() => {
               marker.style.backgroundColor = originalColor;
             }, 1500); // Reset after 1.5 seconds
-            
+
             // Show comment details
             this.showCommentDetails(comment.id);
           }
-          
+
           // Close the comments list
           this.toggleCommentsList();
         });
-      
+
         const userInfo = document.createElement('div');
         userInfo.style.cssText = `
           display: flex;
           align-items: center;
           margin-bottom: 8px;
         `;
-      
+
         const avatar = document.createElement('img');
         avatar.src = comment.user.avatar_url;
         avatar.style.cssText = `
@@ -1326,17 +1426,17 @@ try {
           border-radius: 50%;
           margin-right: 8px;
         `;
-      
+
         const userName = document.createElement('span');
         userName.textContent = comment.user.name;
         userName.style.cssText = `
           font-weight: bold;
           font-size: 14px;
         `;
-      
+
         userInfo.appendChild(avatar);
         userInfo.appendChild(userName);
-      
+
         const content = document.createElement('div');
         content.textContent = comment.content;
         content.style.cssText = `
@@ -1344,7 +1444,7 @@ try {
           line-height: 1.4;
           margin-bottom: 8px;
         `;
-      
+
         const timestamp = document.createElement('div');
         timestamp.textContent = new Date(comment.created_at).toLocaleString();
         timestamp.style.cssText = `
@@ -1352,11 +1452,11 @@ try {
           color: #657786;
           margin-bottom: 8px;
         `;
-      
+
         commentElement.appendChild(userInfo);
         commentElement.appendChild(content);
         commentElement.appendChild(timestamp);
-      
+
         // Add replies to the comment element
         if (comment.replies && comment.replies.length > 0) {
           const repliesContainer = document.createElement('div');
@@ -1365,15 +1465,15 @@ try {
             border-left: 2px solid #E1E8ED;
             padding-left: 12px;
           `;
-      
+
           comment.replies.forEach(reply => {
             const replyElement = this.createReplyElementForList(reply);
             repliesContainer.appendChild(replyElement);
           });
-      
+
           commentElement.appendChild(repliesContainer);
         }
-      
+
         return commentElement;
       },
 
@@ -1528,7 +1628,7 @@ try {
           comment.replies.push(reply);
           this.updateCommentDetails(comment);
           this.updateCommentsList();
-          this.showNotification('Reply added successfully!');
+          this.showNotification({ message: 'Reply added successfully!' });
         }
       },
 
@@ -1588,9 +1688,9 @@ try {
           this.updateCommentMarker(comment);
           this.updateCommentDetails(comment);
           this.updateCommentsList();
-          this.showNotification(
-            `Comment ${comment.resolved ? 'resolved' : 'unresolved'}`,
-          );
+          this.showNotification({
+            message: `Comment ${comment.resolved ? 'resolved' : 'unresolved'}`,
+          });
         }
       },
 
@@ -1684,8 +1784,8 @@ try {
           },
           { label: 'My Profile', type: 'button' },
           { label: 'Help Center', type: 'button' },
-           { label: 'Login', type: 'button', onClick: () => this.login() },
-      { label: 'Logout', type: 'button', onClick: () => this.logout() },
+          { label: 'Login', type: 'button', onClick: () => this.login() },
+          { label: 'Logout', type: 'button', onClick: () => this.logout() },
         ]);
       },
 
@@ -1693,7 +1793,11 @@ try {
         if (!this.menuPopover) {
           this.createMenuPopover();
         }
-        console.log('Showing menu ', this.menuPopover, this.menuPopover.style.display);
+        console.log(
+          'Showing menu ',
+          this.menuPopover,
+          this.menuPopover.style.display,
+        );
         if (this.menuPopover.style.display === 'none') {
           this.menuPopover.style.display = 'block';
           this.positionPopover(this.menuPopover);
@@ -1838,14 +1942,15 @@ try {
       positionPopover: function (popover) {
         const toolbarRect = this.toolbar.getBoundingClientRect();
         const popoverRect = popover.getBoundingClientRect();
-      
+
         // Position the popover just above the toolbar
         popover.style.bottom = `${window.innerHeight - toolbarRect.top + 10}px`;
-      
+
         // Ensure the popover doesn't go off-screen on the left or right
-        const leftPosition = toolbarRect.left + (toolbarRect.width - popoverRect.width) / 2;
+        const leftPosition =
+          toolbarRect.left + (toolbarRect.width - popoverRect.width) / 2;
         const rightEdge = leftPosition + popoverRect.width;
-      
+
         if (leftPosition < 10) {
           popover.style.left = '10px';
           popover.style.transform = 'none';
@@ -1878,25 +1983,28 @@ try {
       // Add this new method
       startAddingComment: function () {
         console.log('Starting to add a comment');
-        
+
         // If already in comment adding mode, cancel it
         if (this.isSelectingCommentLocation) {
           this.cancelAddingComment();
           return;
         }
-      
+
         if (this.addCommentPopover) {
           this.addCommentPopover.remove();
         }
         this.addCommentPopover = this.createPopover('Add Comment', [
-          { label: 'Click anywhere to place your comment (ESC to cancel)', type: 'message' },
+          {
+            label: 'Click anywhere to place your comment (ESC to cancel)',
+            type: 'message',
+          },
         ]);
         this.addCommentPopover.style.display = 'block';
         this.positionPopover(this.addCommentPopover);
-      
+
         this.isSelectingCommentLocation = true;
         document.body.style.cursor = 'crosshair';
-      
+
         // Create and show the overlay with pointer events enabled
         this.overlay = document.createElement('div');
         this.overlay.style.cssText = `
@@ -1911,7 +2019,7 @@ try {
         `;
 
         // Add escape key handler specifically for the overlay
-        const escHandler = (e) => {
+        const escHandler = e => {
           if (e.key === 'Escape') {
             this.cancelAddingComment();
             document.removeEventListener('keydown', escHandler);
@@ -1920,31 +2028,36 @@ try {
         document.addEventListener('keydown', escHandler);
 
         // Add click handler directly to overlay
-        this.overlay.addEventListener('click', (e) => {
+        this.overlay.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
-          
+
           const x = e.clientX;
           const y = e.clientY;
-          
+
           // Clean up overlay and comment placement mode
           this.cancelAddingComment();
           document.removeEventListener('keydown', escHandler);
-          
+
           // Show comment form at click position
-          if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
+          if (
+            typeof x === 'number' &&
+            typeof y === 'number' &&
+            !isNaN(x) &&
+            !isNaN(y)
+          ) {
             this.showCommentForm(x, y);
           }
         });
 
         // Prevent any clicks from reaching elements below
-        this.overlay.addEventListener('mousedown', (e) => {
+        this.overlay.addEventListener('mousedown', e => {
           e.preventDefault();
           e.stopPropagation();
         });
 
         document.body.appendChild(this.overlay);
-      
+
         // Hide the addCommentPopover after a delay
         setTimeout(() => {
           if (this.addCommentPopover) {
@@ -1977,11 +2090,8 @@ try {
           return;
         }
 
-        const { selector, x_percent, y_percent } = this.calculateRelativePosition(
-          targetElement,
-          x,
-          y,
-        );
+        const { selector, x_percent, y_percent } =
+          this.calculateRelativePosition(targetElement, x, y);
 
         const tempComment = {
           id: `temp-${crypto.randomUUID()}`, // Use UUID for consistency
@@ -2003,7 +2113,7 @@ try {
           device_pixel_ratio: window.devicePixelRatio,
           deployment_url: window.location.host,
           user_agent: navigator.userAgent,
-          draft_mode: true // Mark as draft
+          draft_mode: true, // Mark as draft
         };
 
         this.renderComment(tempComment);
@@ -2087,24 +2197,31 @@ try {
                 ...tempComment,
                 content: commentText,
                 url: window.location.href,
-                draft_mode: false // Mark as published
+                draft_mode: false, // Mark as published
               };
 
-              console.log('New comment object to be sent to server:', newComment);
-              this.ws.send(JSON.stringify({
-                type: 'newComment',
-                projectId: this.projectId,
-                url: window.location.href,
-                comment: newComment,
-                token: this.token
-              }));
-              
+              console.log(
+                'New comment object to be sent to server:',
+                newComment,
+              );
+              this.ws.send(
+                JSON.stringify({
+                  type: 'newComment',
+                  projectId: this.projectId,
+                  url: window.location.href,
+                  comment: newComment,
+                  token: this.token,
+                }),
+              );
+
               this.comments.push(newComment);
 
               // Note: We don't add the comment to this.comments or render it here
               // We'll wait for the server to confirm and send back the comment with an ID
 
-              this.showNotification('Comment added successfully!');
+              this.showNotification({
+                message: 'Comment added successfully!',
+              });
             }
           });
 
@@ -2113,13 +2230,13 @@ try {
           detailsBox.appendChild(commentForm);
 
           detailsBox.style.display = 'block';
-          
+
           // Save the current scroll position
           const scrollPosition = window.pageYOffset;
-          
+
           // Focus on the textarea without scrolling
-          textarea.focus({preventScroll: true});
-          
+          textarea.focus({ preventScroll: true });
+
           // Restore the scroll position
           window.scrollTo(0, scrollPosition);
         }
@@ -2153,23 +2270,32 @@ try {
         let targetElement = this.findTargetElement(comment.selector);
         const webPath = window.location.pathname;
         const commentPath = new URL(comment.url).pathname;
-      
-        console.log('commentPath', commentPath, 'webPath', webPath, 'isEqual', commentPath === webPath);
-        
+
+        console.log(
+          'commentPath',
+          commentPath,
+          'webPath',
+          webPath,
+          'isEqual',
+          commentPath === webPath,
+        );
+
         if (webPath !== commentPath) {
-          console.log('Comment path does not match current page, skipping render');
+          console.log(
+            'Comment path does not match current page, skipping render',
+          );
           return null;
         }
-      
+
         if (!targetElement) {
           console.warn('Target element not found for comment:', comment);
           targetElement = document.body; // Fallback to body if element not found
         }
-      
+
         const marker = document.createElement('div');
         marker.classList.add('opv-comment-marker');
         marker.dataset.commentId = comment.id;
-        
+
         marker.style.cssText = `
           position: absolute;
           width: 32px;
@@ -2187,7 +2313,7 @@ try {
           transition: none;
           user-select: none;
         `;
-      
+
         // Use user avatar if available, otherwise use initials or a default icon
         if (comment.user && comment.user.avatar_url) {
           marker.innerHTML = `
@@ -2197,24 +2323,27 @@ try {
           `;
         } else {
           // Use initials or a default icon
-          const initials = comment.user && comment.user.name ? comment.user.name.charAt(0).toUpperCase() : '?';
+          const initials =
+            comment.user && comment.user.name
+              ? comment.user.name.charAt(0).toUpperCase()
+              : '?';
           marker.innerHTML = `
             <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
               ${initials}
             </div>
           `;
         }
-      
+
         // Position the marker
         const rect = targetElement.getBoundingClientRect();
-        const x = rect.left + (comment.x_percent * rect.width);
-        const y = rect.top + (comment.y_percent * rect.height);
-        
+        const x = rect.left + comment.x_percent * rect.width;
+        const y = rect.top + comment.y_percent * rect.height;
+
         marker.style.left = `${x + window.scrollX}px`;
         marker.style.top = `${y + window.scrollY}px`;
-      
+
         document.body.appendChild(marker);
-      
+
         // Create details box with new device icon feature
         const detailsBox = document.createElement('div');
         detailsBox.classList.add('opv-comment-details');
@@ -2232,7 +2361,7 @@ try {
           overflow-y: auto;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         `;
-      
+
         // Create header container
         const header = document.createElement('div');
         header.style.cssText = `
@@ -2241,7 +2370,7 @@ try {
           align-items: flex-start;
           margin-bottom: 12px;
         `;
-      
+
         // Create user info container
         const userInfo = document.createElement('div');
         userInfo.style.cssText = `
@@ -2249,9 +2378,12 @@ try {
           align-items: center;
           flex: 1;
         `;
-      
+
         const avatar = document.createElement('img');
-        avatar.src = comment.user && comment.user.avatar_url ? comment.user.avatar_url : '';
+        avatar.src =
+          comment.user && comment.user.avatar_url
+            ? comment.user.avatar_url
+            : '';
         avatar.style.cssText = `
           width: 32px;
           height: 32px;
@@ -2259,13 +2391,13 @@ try {
           margin-right: 8px;
           ${!avatar.src ? 'display: none;' : ''}
         `;
-      
+
         const userDetails = document.createElement('div');
         userDetails.innerHTML = `
-          <div style="font-weight: bold;">${comment.user && comment.user.name || 'Anonymous'}</div>
+          <div style="font-weight: bold;">${(comment.user && comment.user.name) || 'Anonymous'}</div>
           <div style="font-size: 12px; color: #657786;">${new Date(comment.created_at).toLocaleString()}</div>
         `;
-      
+
         // Create device icon
         const deviceIcon = document.createElement('div');
         deviceIcon.style.cssText = `
@@ -2274,27 +2406,29 @@ try {
           display: flex;
           align-items: center;
         `;
-      
-        const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(comment.user_agent);
-        deviceIcon.innerHTML = isMobile ? 
-          `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(
+          comment.user_agent,
+        );
+        deviceIcon.innerHTML = isMobile
+          ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
             <line x1="12" y1="18" x2="12" y2="18"/>
-          </svg>` :
-          `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          </svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
             <line x1="8" y1="21" x2="16" y2="21"/>
             <line x1="12" y1="17" x2="12" y2="21"/>
           </svg>`;
         deviceIcon.title = isMobile ? 'Mobile Device' : 'Desktop Device';
-      
+
         // Assemble the header
         userInfo.appendChild(avatar);
         userInfo.appendChild(userDetails);
         header.appendChild(userInfo);
         header.appendChild(deviceIcon);
         detailsBox.appendChild(header);
-      
+
         // Add comment content
         const content = document.createElement('div');
         content.style.cssText = `
@@ -2305,7 +2439,7 @@ try {
         `;
         content.textContent = comment.content;
         detailsBox.appendChild(content);
-      
+
         // Add replies container
         const repliesContainer = document.createElement('div');
         repliesContainer.classList.add('replies-container');
@@ -2316,15 +2450,15 @@ try {
           });
         }
         detailsBox.appendChild(repliesContainer);
-      
+
         // Add reply form
         const replyForm = this.createReplyForm(comment.id);
         detailsBox.appendChild(replyForm);
-      
+
         document.body.appendChild(detailsBox);
-      
+
         // Smart positioning of the details box
-              
+
         // Improved hover functionality
         let showTimeout, hideTimeout;
         const showDelay = 100; // Reduced delay for showing
@@ -2333,7 +2467,9 @@ try {
         const showDetailsBox = () => {
           clearTimeout(hideTimeout);
           showTimeout = setTimeout(() => {
-            const allDetails = document.querySelectorAll('.opv-comment-details');
+            const allDetails = document.querySelectorAll(
+              '.opv-comment-details',
+            );
             allDetails.forEach(detail => {
               if (detail !== detailsBox) {
                 detail.style.display = 'none';
@@ -2354,10 +2490,14 @@ try {
         };
 
         // Helper function to check if user is typing in the details box
-        const isUserTyping = (element) => {
+        const isUserTyping = element => {
           const activeElement = document.activeElement;
-          return activeElement && element.contains(activeElement) && 
-                 (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+          return (
+            activeElement &&
+            element.contains(activeElement) &&
+            (activeElement.tagName === 'INPUT' ||
+              activeElement.tagName === 'TEXTAREA')
+          );
         };
 
         marker.addEventListener('mouseenter', showDetailsBox);
@@ -2388,14 +2528,16 @@ try {
         return { marker, detailsBox };
       },
 
-      positionDetailsBox: function(marker, detailsBox) {
+      positionDetailsBox: function (marker, detailsBox) {
         const markerRect = marker.getBoundingClientRect();
         const detailsRect = detailsBox.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-      
+        const scrollX =
+          window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY =
+          window.pageYOffset || document.documentElement.scrollTop;
+
         // Horizontal positioning
         let leftPosition;
         if (viewportWidth - markerRect.right >= detailsRect.width + 10) {
@@ -2408,25 +2550,25 @@ try {
           // Center horizontally if no space on sides
           leftPosition = scrollX + (viewportWidth - detailsRect.width) / 2;
         }
-      
+
         // Vertical positioning
         let topPosition = markerRect.top + scrollY; // Align top of details box with top of marker
-      
+
         // Ensure the details box doesn't go off-screen vertically
         if (topPosition + detailsRect.height > scrollY + viewportHeight) {
           // If it goes off the bottom, align the bottom of the details box with the bottom of the viewport
           topPosition = scrollY + viewportHeight - detailsRect.height - 10;
         }
-      
+
         // Apply the calculated position
         detailsBox.style.left = `${leftPosition}px`;
         detailsBox.style.top = `${topPosition}px`;
       },
-      
+
       // Update calculateRelativePosition to use the new selector format
-      calculateRelativePosition: function(element, x, y) {
+      calculateRelativePosition: function (element, x, y) {
         const rect = element.getBoundingClientRect();
-        
+
         // Calculate relative positions as decimals (0-1)
         const x_percent = (x - rect.left) / rect.width;
         const y_percent = (y - rect.top) / rect.height;
@@ -2442,138 +2584,156 @@ try {
           deployment_url: window.location.host,
           user_agent: navigator.userAgent,
           draft_mode: false,
-          node_id: null
+          node_id: null,
         };
       },
 
-      makeCommentDraggable: function (marker, detailsBox, comment, updatePosition) {
+      makeCommentDraggable: function (
+        marker,
+        detailsBox,
+        comment,
+        updatePosition,
+      ) {
         let isDragging = false;
         let startX, startY;
         let startMarkerLeft, startMarkerTop;
         let targetElement;
-      
-        const onMouseDown = (e) => {
+
+        const onMouseDown = e => {
           if (e.button !== 0) return; // Only handle left mouse button
           e.preventDefault();
           e.stopPropagation();
-          
+
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
-          
+
           const markerRect = marker.getBoundingClientRect();
           startMarkerLeft = markerRect.left + window.scrollX;
           startMarkerTop = markerRect.top + window.scrollY;
-          
+
           document.addEventListener('mousemove', onMouseMove);
           document.addEventListener('mouseup', onMouseUp);
         };
-      
-        const onMouseMove = (e) => {
+
+        const onMouseMove = e => {
           if (!isDragging) return;
-          
+
           const dx = e.clientX - startX;
           const dy = e.clientY - startY;
-          
+
           const newLeft = startMarkerLeft + dx;
           const newTop = startMarkerTop + dy;
-          
+
           marker.style.left = `${newLeft}px`;
           marker.style.top = `${newTop}px`;
-          
+
           if (detailsBox && detailsBox.style.display === 'block') {
             detailsBox.style.left = `${newLeft + 40}px`;
             detailsBox.style.top = `${newTop}px`;
           }
         };
-      
-        const onMouseUp = (e) => {
+
+        const onMouseUp = e => {
           if (!isDragging) return;
           isDragging = false;
-          
+
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
-          
+
           // Get the element at the current position
           marker.style.display = 'none';
           targetElement = document.elementFromPoint(e.clientX, e.clientY);
           marker.style.display = 'flex';
-          
+
           if (targetElement) {
             const rect = targetElement.getBoundingClientRect();
             const markerRect = marker.getBoundingClientRect();
-            
+
             // Calculate new percentages
-            const newXPercent = (markerRect.left + window.scrollX - (rect.left + window.scrollX)) / rect.width;
-            const newYPercent = (markerRect.top + window.scrollY - (rect.top + window.scrollY)) / rect.height;
-            
+            const newXPercent =
+              (markerRect.left +
+                window.scrollX -
+                (rect.left + window.scrollX)) /
+              rect.width;
+            const newYPercent =
+              (markerRect.top + window.scrollY - (rect.top + window.scrollY)) /
+              rect.height;
+
             // Update comment object
             comment.x_percent = newXPercent;
             comment.y_percent = newYPercent;
             comment.selector = this.getUniqueSelector(targetElement);
-            
+
             // Update position immediately
-            this.updateCommentPosition(marker, detailsBox, comment, targetElement);
-            
+            this.updateCommentPosition(
+              marker,
+              detailsBox,
+              comment,
+              targetElement,
+            );
+
             // Send update to server if not a temporary comment
             if (!comment.id.toString().startsWith('temp-')) {
-              this.ws.send(JSON.stringify({
-                type: 'updateComment',
-                projectId: this.projectId,
-                url: window.location.href,
-                comment: {
-                  id: comment.id,
-                  x_percent: newXPercent,
-                  y_percent: newYPercent,
-                  selector: comment.selector
-                },
-                token: this.token
-              }));
+              this.ws.send(
+                JSON.stringify({
+                  type: 'updateComment',
+                  projectId: this.projectId,
+                  url: window.location.href,
+                  comment: {
+                    id: comment.id,
+                    x_percent: newXPercent,
+                    y_percent: newYPercent,
+                    selector: comment.selector,
+                  },
+                  token: this.token,
+                }),
+              );
             }
           }
         };
-      
+
         marker.addEventListener('mousedown', onMouseDown);
-        
+
         // Touch support
-        marker.addEventListener('touchstart', (e) => {
+        marker.addEventListener('touchstart', e => {
           const touch = e.touches[0];
-          onMouseDown({ 
+          onMouseDown({
             preventDefault: () => e.preventDefault(),
             stopPropagation: () => e.stopPropagation(),
             clientX: touch.clientX,
             clientY: touch.clientY,
-            button: 0
+            button: 0,
           });
         });
-      
-        document.addEventListener('touchmove', (e) => {
+
+        document.addEventListener('touchmove', e => {
           if (isDragging) {
             const touch = e.touches[0];
             onMouseMove({
               clientX: touch.clientX,
-              clientY: touch.clientY
+              clientY: touch.clientY,
             });
           }
         });
-      
-        document.addEventListener('touchend', (e) => {
+
+        document.addEventListener('touchend', e => {
           if (isDragging) {
             const touch = e.changedTouches[0];
             onMouseUp({
               clientX: touch.clientX,
-              clientY: touch.clientY
+              clientY: touch.clientY,
             });
           }
         });
-      }
+      },
     };
 
     //#region Init OPV
     // Initialize OpenPreview immediately
     console.log('Initializing OpenPreview');
     OpenPreview.init({
-      projectId: document.currentScript.getAttribute('data-project-id')
+      projectId: document.currentScript.getAttribute('data-project-id'),
     });
 
     // Expose OpenPreview to the global scope if needed
@@ -2585,4 +2745,3 @@ try {
 } catch (error) {
   console.error('Error in OpenPreview script:', error);
 }
-

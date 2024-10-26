@@ -11,7 +11,7 @@
     "prettier": "prettier --write --ignore-path .gitignore .",
     "types": "supabase gen types --lang=typescript --local > ./supabase/src/supabase.types.ts",
     "seed": "bunx supabase db dump -f supabase/seed.sql --data-only --local",
-    "db_save": "bunx supabase db diff --local > supabase/migrations/$(new Date().toISOString().split('T')[0] + '_migration.sql')"
+    "db_save": "node db_deploy.js"
   },
   "devDependencies": {
     "@openpreview/eslint-config-custom": "*",
@@ -19,6 +19,7 @@
     "@types/morgan": "^1.9.9",
     "concurrently": "^9.0.1",
     "eslint": "^9.11.0",
+    "moment": "^2.30.1",
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.6.6",
     "syncpack": "^13.0.0",

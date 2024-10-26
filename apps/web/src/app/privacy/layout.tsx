@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: 'OpenPreview - Privacy Policy',
+  title: 'OpenPreview',
   description:
     'OpenPreview is a powerful preview domain toolbar for websites. Add comments and collaborate directly on your web pages.',
 };
