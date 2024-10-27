@@ -1296,52 +1296,66 @@
     },
 
     getUniqueSelector: function (element) {
-      if (!element || element === document.body) {
-        return 'body';
+      // If element is null or not an HTML element, return empty string
+      if (!element || !(element instanceof HTMLElement)) {
+        return '';
       }
 
+      // If element has an ID, use that as it's unique
+      if (element.id) {
+        return '#' + element.id;
+      }
+
+      // Get all siblings of the same type
+      const getAllSiblings = elm => {
+        const siblings = [];
+        let sibling = elm.parentNode.firstChild;
+
+        while (sibling) {
+          if (sibling.nodeType === 1 && sibling.tagName === elm.tagName) {
+            siblings.push(sibling);
+          }
+          sibling = sibling.nextSibling;
+        }
+        return siblings;
+      };
+
+      // Build the path until we reach the body or a unique identifier
       let path = [];
-      let current = element;
+      let currentElement = element;
 
-      while (current) {
-        if (current === document.body || current === document.documentElement) {
-          break;
-        }
+      while (currentElement && currentElement.tagName !== 'BODY') {
+        let selector = currentElement.tagName.toLowerCase();
 
-        let selector = current.tagName.toLowerCase();
+        // Add classes if they exist
+        if (currentElement.className) {
+          const classes = currentElement.className
+            .split(' ')
+            .filter(c => c)
+            .map(c => c.trim())
+            .map(c => (c.includes('__variable_') ? '' : c)) // Handle dynamic classes
+            .filter(c => c);
 
-        // Add a unique class if it exists
-        if (current.classList.length > 0) {
-          const uniqueClass = Array.from(current.classList).find(cls => {
-            // Ensure the class is unique within its parent scope
-            return (
-              current.parentNode.querySelectorAll('.' + cls).length === 1 &&
-              !cls.startsWith('__variable_')
-            );
-          });
-          if (uniqueClass) {
-            selector += `.${uniqueClass}`;
+          if (classes.length > 0) {
+            selector += '.' + classes.join('.');
           }
         }
 
-        // Add nth-of-type for elements with same tag siblings
-        if (current.parentNode) {
-          const siblings = Array.from(current.parentNode.children);
-          const similarSiblings = siblings.filter(
-            e => e.tagName === current.tagName,
-          );
-          if (similarSiblings.length > 1) {
-            const index = similarSiblings.indexOf(current) + 1;
-            selector += `:nth-of-type(${index})`;
-          }
+        // If there are multiple elements matching the selector, add nth-of-type
+        const siblings = getAllSiblings(currentElement);
+        if (siblings.length > 1) {
+          const index = siblings.indexOf(currentElement) + 1;
+          selector += `:nth-of-type(${index})`;
         }
 
         path.unshift(selector);
-        current = current.parentNode;
+        currentElement = currentElement.parentNode;
       }
 
+      // Add body at the start
       path.unshift('body');
-      return path.join(' > ');
+
+      return path.join('>');
     },
 
     findTargetElement: function (selectorString) {
