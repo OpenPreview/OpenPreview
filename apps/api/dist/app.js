@@ -22,40 +22,6 @@ const http_1 = __importDefault(require("http"));
 const morgan_1 = __importDefault(require("morgan"));
 const ws_1 = require("ws");
 require('dotenv').config();
-// Load environment variables from .env file
-dotenv_1.default.config();
-const app = (0, express_1.default)();
-const server = http_1.default.createServer(app);
-// Configure CORS
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin)
-            return callback(null, true);
-        // Add your allowed origins here
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'http://localhost:3002',
-            'http://localhost:3003',
-        ];
-        if (allowedOrigins.includes(origin) || origin.endsWith('.yourdomain.com')) {
-            callback(null, true);
-        }
-        else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
-    credentials: true,
-};
-app.use((0, cors_1.default)(corsOptions));
-// using morgan for logs
-app.use((0, morgan_1.default)('combined'));
-app.use(express_1.default.json());
-app.use(body_parser_1.default.urlencoded({ extended: true }));
-app.use(body_parser_1.default.json());
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -64,6 +30,87 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 }
 const supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseServiceRoleKey);
 const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002';
+// Load environment variables from .env file
+dotenv_1.default.config();
+const app = (0, express_1.default)();
+const server = http_1.default.createServer(app);
+// Function to fetch allowed domains from Supabase
+function fetchAllowedDomains() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { data, error } = yield supabase
+            .from('allowed_domains')
+            .select('domain');
+        if (error) {
+            console.error('Error fetching allowed domains from Supabase:', error);
+            return [];
+        }
+        return data ? data.map(entry => entry.domain) : [];
+    });
+}
+// Function to normalize domain by removing protocol and trailing slash
+function normalizeDomain(domain) {
+    return domain
+        .replace(/^https?:\/\//, '') // Remove protocol
+        .replace(/\/$/, ''); // Remove trailing slash
+}
+// Function to check if origin is a subdomain of an allowed domain
+function isSubdomainOf(origin, allowedDomain) {
+    const normalizedOrigin = normalizeDomain(origin);
+    const normalizedAllowedDomain = normalizeDomain(allowedDomain);
+    return (normalizedOrigin === normalizedAllowedDomain ||
+        normalizedOrigin.endsWith(`.${normalizedAllowedDomain}`));
+}
+// Function to fetch allowed domains from Supabase
+function fetchAllowedDomains(supabase) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { data, error } = yield supabase
+            .from('allowed_domains')
+            .select('domain');
+        if (error) {
+            console.error('Error fetching allowed domains from Supabase:', error);
+            return [];
+        }
+        return data ? data.map(entry => entry.domain) : [];
+    });
+}
+const corsOptions = {
+    origin: function (origin, callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!origin) {
+                return callback(null, true); // Allow requests with no origin (like mobile apps)
+            }
+            try {
+                const allowedDomains = yield fetchAllowedDomains(supabase);
+                // Check if the origin matches any allowed domain or is a subdomain
+                const isAllowed = allowedDomains.some(allowedDomain => isSubdomainOf(origin, allowedDomain)) || origin.endsWith('.openpreview.dev');
+                if (isAllowed) {
+                    // Add the origin to the Access-Control-Allow-Origin header
+                    callback(null, true);
+                }
+                else {
+                    callback(new Error(`Origin ${origin} not allowed by CORS`));
+                }
+            }
+            catch (error) {
+                console.error('Error in CORS origin check:', error);
+                callback(new Error('Internal CORS error'));
+            }
+        });
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
+    credentials: true,
+    maxAge: 86400, // 24 hours
+};
+// Apply CORS configuration
+app.use((0, cors_1.default)(corsOptions));
+// Add OPTIONS handling for preflight requests
+app.options('*', (0, cors_1.default)(corsOptions));
+// using morgan for logs
+app.use((0, morgan_1.default)('combined'));
+app.use(express_1.default.json());
+app.use(body_parser_1.default.urlencoded({ extended: true }));
+app.use(body_parser_1.default.json());
 // Store for temporary authentication codes
 const authCodes = new Map();
 // Update the authenticate middleware

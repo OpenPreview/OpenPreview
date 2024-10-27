@@ -31,18 +31,6 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Function to fetch allowed domains from Supabase
-async function fetchAllowedDomains(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('allowed_domains')
-    .select('domain');
-  if (error) {
-    console.error('Error fetching allowed domains from Supabase:', error);
-    return [];
-  }
-  return data ? data.map(entry => entry.domain) : [];
-}
-
 // Function to normalize domain by removing protocol and trailing slash
 function normalizeDomain(domain: string): string {
   return domain
