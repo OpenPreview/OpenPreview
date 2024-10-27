@@ -11,30 +11,51 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 require('dotenv').config();
 
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.error(
+    'NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment',
+  );
+  process.exit(1);
+}
+
+const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
+const dashboardUrl =
+  process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002';
+
 // Load environment variables from .env file
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Configure CORS
+// Function to fetch allowed domains from Supabase
+async function fetchAllowedDomains(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('allowed_domains')
+    .select('domain');
+  if (error) {
+    console.error('Error fetching allowed domains from Supabase:', error);
+    return [];
+  }
+  return data ? data.map(entry => entry.domain) : [];
+}
+
+// Configure CORS with dynamic domains from Supabase
 const corsOptions: cors.CorsOptions = {
-  origin: function (
+  origin: async function (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
   ) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    // Add your allowed origins here
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:3003',
-    ];
-
-    if (allowedOrigins.includes(origin) || origin.endsWith('.yourdomain.com')) {
+    const allowedOrigins = await fetchAllowedDomains();
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.openpreview.dev')
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -52,20 +73,6 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  console.error(
-    'NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in the environment',
-  );
-  process.exit(1);
-}
-
-const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
-const dashboardUrl =
-  process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002';
 
 // Extend the Request type to include the user and project properties
 interface AuthenticatedRequest extends Request {
