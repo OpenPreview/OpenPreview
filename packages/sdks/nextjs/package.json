@@ -1,8 +1,8 @@
 {
   "name": "@openpreview/nextjs",
-  "version": "1.0.0-local",
+  "version": "1.0.1-beta",
   "author": "John Annunziato",
-  "module": "index.tsx",
+  "module": "./dist/index.mjs",
   "scripts": {
     "build": "rm -rf dist && tsup",
     "typecheck": "tsc --noEmit"
@@ -20,7 +20,7 @@
     "typescript": "^5.6.3"
   },
   "description": "The @openpreview/nextjs SDK integrates OpenPreview's collaborative comments and project management tools into Next.js applications for seamless team collaboration and streamlined development.",
-  "main": "index.tsx",
+  "main": "./dist/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OpenPreview/OpenPreview.git"
@@ -30,9 +30,25 @@
     "url": "https://github.com/OpenPreview/OpenPreview/issues"
   },
   "homepage": "https://github.com/OpenPreview/OpenPreview#readme",
-  "type": "module",
   "dependencies": {
     "bson": "^6.9.0",
     "npm": "^10.9.0"
+  },
+  "private": false,
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs",
+      "types": "./dist/server.d.ts"
+    }
   }
 }
