@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { sendSignupEmail } from './actions'; // We'll create this file
 
 const signUpSchema = z
   .object({
@@ -45,8 +46,6 @@ type SignUpFormValues = z.infer<typeof signUpSchema>;
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const supabase = useSupabaseBrowser();
@@ -64,17 +63,16 @@ export default function SignUpPage() {
   async function onSubmit(data: SignUpFormValues) {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      // Send signup email using server action
+      const emailResult = await sendSignupEmail({
         email: data.email,
+        name: data.name,
         password: data.password,
-        options: {
-          data: {
-            full_name: data.name,
-          },
-        },
       });
 
-      if (error) throw error;
+      if (emailResult.error) {
+        throw new Error(emailResult.error);
+      }
 
       toast({
         title: 'Account created',
