@@ -247,6 +247,7 @@
       }
     },
     initializeComponents: function () {
+      this.createToolbar();
       this.createCommentForm();
       this.createCommentsList();
       this.updateEyeIcon();

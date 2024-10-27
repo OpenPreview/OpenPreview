@@ -34,19 +34,6 @@ const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002'
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
-// Function to fetch allowed domains from Supabase
-function fetchAllowedDomains() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const { data, error } = yield supabase
-            .from('allowed_domains')
-            .select('domain');
-        if (error) {
-            console.error('Error fetching allowed domains from Supabase:', error);
-            return [];
-        }
-        return data ? data.map(entry => entry.domain) : [];
-    });
-}
 // Function to normalize domain by removing protocol and trailing slash
 function normalizeDomain(domain) {
     return domain
@@ -176,17 +163,36 @@ app.get('/allowed-domains', authenticate, checkProjectAccess, (req, res) => __aw
     if (!projectId || !domain) {
         return res
             .status(400)
-            .json({ error: 'Project ID and Domain is required' });
+            .json({ error: 'Project ID and Domain are required' });
     }
-    const { data, error } = yield supabase
-        .from('allowed_domains')
-        .select()
-        .eq('project_id', projectId)
-        .eq('domain', domain);
-    console.log(data, domain, projectId);
-    if (error)
-        res.status(500).json({ error });
-    res.json(data);
+    try {
+        // Get all allowed domains for the project
+        const { data: allowedDomains, error } = yield supabase
+            .from('allowed_domains')
+            .select()
+            .eq('project_id', projectId);
+        if (error) {
+            console.error('Error fetching allowed domains:', error);
+            return res
+                .status(500)
+                .json({ error: 'Failed to fetch allowed domains' });
+        }
+        // Normalize the incoming domain
+        const normalizedRequestDomain = normalizeDomain(domain);
+        // Filter domains that match either directly or as a subdomain
+        const matchingDomains = allowedDomains === null || allowedDomains === void 0 ? void 0 : allowedDomains.filter(allowedDomain => isSubdomainOf(normalizedRequestDomain, allowedDomain.domain));
+        console.log({
+            requestDomain: domain,
+            normalizedDomain: normalizedRequestDomain,
+            projectId,
+            matchingDomains,
+        });
+        res.json(matchingDomains || []);
+    }
+    catch (error) {
+        console.error('Error processing allowed domains request:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 }));
 app.post('/allowed-domains', authenticate, checkProjectAccess, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { data, error } = yield supabase
