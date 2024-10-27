@@ -1310,6 +1310,20 @@
 
         let selector = current.tagName.toLowerCase();
 
+        // Add a unique class if it exists
+        if (current.classList.length > 0) {
+          const uniqueClass = Array.from(current.classList).find(cls => {
+            // Ensure the class is unique within its parent scope
+            return (
+              current.parentNode.querySelectorAll('.' + cls).length === 1 &&
+              !cls.startsWith('__variable_')
+            );
+          });
+          if (uniqueClass) {
+            selector += `.${uniqueClass}`;
+          }
+        }
+
         // Add nth-of-type for elements with same tag siblings
         if (current.parentNode) {
           const siblings = Array.from(current.parentNode.children);
@@ -2358,28 +2372,6 @@
 
         // Restore the scroll position
         window.scrollTo(0, scrollPosition);
-      }
-    },
-
-    // Add this function to the OpenPreview object
-    findTargetElement: function (selectorString) {
-      if (!selectorString) {
-        console.warn('No selector provided for findTargetElement');
-        return document.body;
-      }
-
-      try {
-        // Try to find element using the selector directly
-        const element = document.querySelector(selectorString);
-        if (element) {
-          return element;
-        }
-
-        console.warn('Target element not found, falling back to null');
-        return;
-      } catch (error) {
-        console.error('Error finding target element:', error);
-        return;
       }
     },
 
