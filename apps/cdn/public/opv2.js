@@ -162,12 +162,6 @@
         }
       });
       const weborigin = window.location.origin;
-      const isAllowed = this.isPreviewDomain(weborigin);
-
-      if (!isAllowed) {
-        console.log('Origin not allowed');
-        return;
-      }
       console.log('Origin allowed');
 
       // Verify the token first
