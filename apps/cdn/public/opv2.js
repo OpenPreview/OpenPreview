@@ -393,11 +393,7 @@
         const comments = await res.json();
         this.comments = comments;
 
-        if (comments.length === 0) {
-          console.log('No comments found for this URL');
-        } else {
-          this.renderComments();
-        }
+        this.renderComments();
       } catch (error) {
         console.error('Error loading comments:', error);
         this.showNotification({
