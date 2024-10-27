@@ -120,20 +120,38 @@
           'OpenPreview: initOpenPreview called without a project ID',
         );
       }
+
       if (this.isInitialized) {
         console.log('OpenPreview already initialized', config);
-        this.createToolbar();
-        this.loadComments();
 
-        // Do not close or reinitialize WebSocket if already connected
-        if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-          this.initWebSocket();
-        }
+        // Ensure user validation and proper toolbar rendering
+        this.token = this.getCookie('opv_token');
+        this.verifyToken().then(isValid => {
+          if (isValid) {
+            console.log('Token verified successfully');
+            this.token = this.getCookie('opv_token');
+            this.updateLoginState(); // Update toolbar based on logged-in state
+            this.loadComments(); // Load comments if authenticated
+
+            // Do not close or reinitialize WebSocket if already connected
+            if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+              this.initWebSocket();
+            }
+          } else {
+            console.log('Token verification failed or no token found');
+            this.token = null;
+            this.updateLoginState(); // Update toolbar to show login button
+          }
+        });
+
         return;
       }
 
       console.log('OpenPreview initializing...', config.projectId);
       this.projectId = config.projectId;
+
+      // Set the token from cookie if available
+      this.token = this.getCookie('opv_token');
 
       // Bind only the methods that exist and we need
       this.handleKeyboardShortcuts = this.handleKeyboardShortcuts.bind(this);
@@ -193,49 +211,9 @@
         } else {
           console.log('Token verification failed or no token found');
           this.token = null;
-          this.createToolbar();
+          this.createToolbar(); // Create toolbar with login button if not logged in
         }
       });
-
-      // Set up event listeners
-      this.setupEventListeners();
-
-      // Periodically update comment positions
-      setInterval(() => {
-        this.comments.forEach(comment => {
-          const marker = document.querySelector(
-            `.opv-comment-marker[data-comment-id="${comment.id}"]`,
-          );
-          const detailsBox = document.querySelector(
-            `.opv-comment-details[data-comment-id="${comment.id}"]`,
-          );
-          if (marker && detailsBox) {
-            const targetElement = this.findTargetElement(comment.selector);
-            if (targetElement) {
-              this.updateCommentPosition(
-                marker,
-                detailsBox,
-                comment,
-                targetElement,
-              );
-            }
-          }
-        });
-      }, 5000); // Check every 5 seconds
-
-      let pingPong = setInterval(() => {
-        if (this.isConnected && this.ws) {
-          this.ws.send(
-            JSON.stringify({
-              type: 'ping',
-              projectId: this.projectId,
-              url: this.windowUrl,
-            }),
-          );
-        }
-      }, 1000);
-
-      window.addEventListener('resize', this.handleResize.bind(this));
 
       this.isInitialized = true;
       console.log('OpenPreview initialized with project ID:', this.projectId);
@@ -799,6 +777,11 @@
     },
 
     createToolbar: function () {
+      if (this.toolbar) {
+        console.log('Toolbar already created');
+        return;
+      }
+
       console.log('Creating toolbar...');
       this.toolbar = document.createElement('div');
       this.toolbar.id = 'opv-toolbar';
@@ -806,39 +789,45 @@
       const defaultHeight = '36px'; // Slightly reduced height
 
       this.toolbar.style.cssText = `
-          position: fixed !important;
-          bottom: 20px !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
-          height: ${defaultHeight} !important;
-          background-color: rgba(33, 47, 90, 0.9) !important;
-          border: 2px solid rgb(33, 47, 90) !important;
-          border-radius: 9999px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          padding-left: 2px;
-          padding-right: 2px;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-          z-index: 2147483646 !important;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
-          transition: all 0.3s ease !important;
-        `;
+        position: fixed !important;
+        bottom: 20px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        height: ${defaultHeight} !important;
+        background-color: rgba(33, 47, 90, 0.9) !important;
+        border: 2px solid rgb(33, 47, 90) !important;
+        border-radius: 9999px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding-left: 2px;
+        padding-right: 2px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        z-index: 2147483646 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+        transition: all 0.3s ease !important;
+      `;
 
       // Update media query for mobile
       this.toolbar.style.cssText += `
-          @media (max-width: 768px) {
-            bottom: 10px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            width: auto !important;
-            max-width: calc(100% - 20px) !important;
-          }
-        `;
+        @media (max-width: 768px) {
+          bottom: 10px !important;
+          left: 50% !important;
+          transform: translateX(-50%) !important;
+          width: auto !important;
+          max-width: calc(100% - 20px) !important;
+        }
+      `;
 
-      // Add login button
-      this.loginButton = this.createLoginButton();
-      this.toolbar.appendChild(this.loginButton);
+      // Check if user is logged in
+      if (this.token) {
+        console.log('User is logged in, creating full toolbar');
+        this.updateLoginState(); // Show full toolbar buttons if logged in
+      } else {
+        console.log('User is not logged in, showing login button only');
+        this.loginButton = this.createLoginButton();
+        this.toolbar.appendChild(this.loginButton);
+      }
 
       document.body.appendChild(this.toolbar);
       console.log('Toolbar added to body');
