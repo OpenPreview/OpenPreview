@@ -1,6 +1,6 @@
 {
   "name": "@openpreview/nextjs",
-  "version": "1.0.1-beta",
+  "version": "1.0.2-beta",
   "author": "John Annunziato",
   "module": "./dist/index.mjs",
   "scripts": {
