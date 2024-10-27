@@ -43,41 +43,80 @@ async function fetchAllowedDomains(): Promise<string[]> {
   return data ? data.map(entry => entry.domain) : [];
 }
 
+// Function to normalize domain by removing protocol and trailing slash
+function normalizeDomain(domain: string): string {
+  return domain
+    .replace(/^https?:\/\//, '') // Remove protocol
+    .replace(/\/$/, ''); // Remove trailing slash
+}
+
+// Function to check if origin is a subdomain of an allowed domain
+function isSubdomainOf(origin: string, allowedDomain: string): boolean {
+  const normalizedOrigin = normalizeDomain(origin);
+  const normalizedAllowedDomain = normalizeDomain(allowedDomain);
+
+  return (
+    normalizedOrigin === normalizedAllowedDomain ||
+    normalizedOrigin.endsWith(`.${normalizedAllowedDomain}`)
+  );
+}
+
+// Function to fetch allowed domains from Supabase
+async function fetchAllowedDomains(
+  supabase: ReturnType<typeof createClient<Database>>,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('allowed_domains')
+    .select('domain');
+
+  if (error) {
+    console.error('Error fetching allowed domains from Supabase:', error);
+    return [];
+  }
+
+  return data ? data.map(entry => entry.domain) : [];
+}
+
 const corsOptions: cors.CorsOptions = {
   origin: async function (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
   ) {
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      return callback(null, true); // Allow requests with no origin (like mobile apps)
+    }
 
     try {
-      const allowedOrigins = await fetchAllowedDomains();
-      const sanitizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
+      const allowedDomains = await fetchAllowedDomains(supabase);
 
-      // Check if the sanitized origin matches directly or as a subdomain of any allowed domain
+      // Check if the origin matches any allowed domain or is a subdomain
       const isAllowed =
-        allowedOrigins.some(
-          allowedDomain =>
-            sanitizedOrigin === allowedDomain ||
-            sanitizedOrigin.endsWith(`.${allowedDomain.replace(/\/$/, '')}`),
-        ) || sanitizedOrigin.endsWith('.openpreview.dev');
+        allowedDomains.some(allowedDomain =>
+          isSubdomainOf(origin, allowedDomain),
+        ) || origin.endsWith('.openpreview.dev');
 
       if (isAllowed) {
+        // Add the origin to the Access-Control-Allow-Origin header
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     } catch (error) {
-      console.error('Error fetching allowed domains for CORS:', error);
-      callback(new Error('Error configuring CORS'));
+      console.error('Error in CORS origin check:', error);
+      callback(new Error('Internal CORS error'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-ID', 'X-Domain'],
   credentials: true,
+  maxAge: 86400, // 24 hours
 };
 
+// Apply CORS configuration
 app.use(cors(corsOptions));
+
+// Add OPTIONS handling for preflight requests
+app.options('*', cors(corsOptions));
 
 // using morgan for logs
 app.use(morgan('combined'));
