@@ -226,6 +226,7 @@
       }
     },
     initializeComponents: function () {
+      this.toolbar = null;
       this.createToolbar();
       this.createCommentForm();
       this.createCommentsList();
