@@ -21,7 +21,7 @@ export default async function RootLayout({
         {children}
         <OpenPreview
           projectId={'ff2a25b3-cef8-46a1-8497-999a0ab2760f'}
-          cdnUrl={`${process.env.NEXT_PUBLIC_CDN_URL}/opv2.js`}
+          cdnUrl={`${process.env.NEXT_PUBLIC_CDN_URL}/opv3.js`}
         />
       </body>
     </html>
