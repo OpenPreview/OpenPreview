@@ -1,17 +1,15 @@
-export default function Home() {
+export default function CDNPage() {
   return (
-    <div>
-      <h1>OpenPreview CDN</h1>
-      <p>Hosting and serving scripts for OpenPreview</p>
-      <div>
-        <h2>Features</h2>
-        <ul>
-          <li>Fast and reliable script delivery</li>
-          <li>Secure hosting environment</li>
-          <li>Seamless integration with OpenPreview</li>
-          <li>Scalable infrastructure</li>
-        </ul>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="mb-4 text-3xl font-bold">OpenPreview CDN</h1>
+      <ul className="list-disc pl-5">
+        <li>Serves the OpenPreview script (opv3.js)</li>
+        <li>Optimized for fast content delivery</li>
+        <li>Supports versioning for script updates</li>
+        <li>Implements caching strategies for improved performance</li>
+        <li>Provides CORS headers for cross-origin access</li>
+        <li>Logs usage statistics for monitoring</li>
+      </ul>
     </div>
   );
 }

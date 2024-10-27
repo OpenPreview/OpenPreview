@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import React from 'react';
+import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'CDN App',
-  description: 'CDN app for hosting scripts',
+  title: 'OpenPreview CDN',
+  description: 'Content Delivery Network for OpenPreview',
 };
 
 export default function RootLayout({
@@ -12,7 +13,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body>
+        {children}
+      </body>
     </html>
   );
 }

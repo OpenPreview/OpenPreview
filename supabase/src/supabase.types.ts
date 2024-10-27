@@ -70,38 +70,68 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
+          deployment_url: string | null
+          device_pixel_ratio: number | null
+          draft_mode: boolean | null
           id: string
+          node_id: string | null
+          page_title: string | null
           parent_id: string | null
           project_id: string | null
+          resolved_at: string | null
+          screen_height: number | null
+          screen_width: number | null
+          selector: string
           updated_at: string | null
           url: string
+          user_agent: string | null
           user_id: string | null
-          x_position: number
-          y_position: number
+          x_percent: number
+          y_percent: number
         }
         Insert: {
           content: string
           created_at?: string | null
+          deployment_url?: string | null
+          device_pixel_ratio?: number | null
+          draft_mode?: boolean | null
           id?: string
+          node_id?: string | null
+          page_title?: string | null
           parent_id?: string | null
           project_id?: string | null
+          resolved_at?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
+          selector: string
           updated_at?: string | null
           url: string
+          user_agent?: string | null
           user_id?: string | null
-          x_position: number
-          y_position: number
+          x_percent: number
+          y_percent: number
         }
         Update: {
           content?: string
           created_at?: string | null
+          deployment_url?: string | null
+          device_pixel_ratio?: number | null
+          draft_mode?: boolean | null
           id?: string
+          node_id?: string | null
+          page_title?: string | null
           parent_id?: string | null
           project_id?: string | null
+          resolved_at?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
+          selector?: string
           updated_at?: string | null
           url?: string
+          user_agent?: string | null
           user_id?: string | null
-          x_position?: number
-          y_position?: number
+          x_percent?: number
+          y_percent?: number
         }
         Relationships: [
           {
@@ -224,7 +254,7 @@ export type Database = {
           logo_updated_at: string | null
           logo_url: string | null
           name: string
-          slug: string
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
@@ -233,7 +263,7 @@ export type Database = {
           logo_updated_at?: string | null
           logo_url?: string | null
           name: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -242,7 +272,7 @@ export type Database = {
           logo_updated_at?: string | null
           logo_url?: string | null
           name?: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -296,7 +326,7 @@ export type Database = {
           id: string
           name: string
           organization_id: string
-          slug: string
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
@@ -305,7 +335,7 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -314,7 +344,7 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
-          slug?: string
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -358,15 +388,7 @@ export type Database = {
           onboarding_completed?: boolean | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "users_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
@@ -380,6 +402,7 @@ export type Database = {
       get_comments_with_replies: {
         Args: {
           project_id: string
+          url: string
         }
         Returns: Json
       }
@@ -496,5 +519,20 @@ export type Enums<
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
     ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 

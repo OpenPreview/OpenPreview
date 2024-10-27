@@ -23,6 +23,7 @@
     "@openpreview/ui": "*",
     "@openpreview/transactional": "*",
     "@openpreview/supabase": "*",
-    "@openpreview/db": "*"
+    "@openpreview/db": "*",
+    "@openpreview/nextjs": "*"
   }
 }
