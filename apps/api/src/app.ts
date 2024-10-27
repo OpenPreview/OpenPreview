@@ -214,17 +214,43 @@ app.get(
     if (!projectId || !domain) {
       return res
         .status(400)
-        .json({ error: 'Project ID and Domain is required' });
+        .json({ error: 'Project ID and Domain are required' });
     }
 
-    const { data, error } = await supabase
-      .from('allowed_domains')
-      .select()
-      .eq('project_id', projectId)
-      .eq('domain', domain);
-    console.log(data, domain, projectId);
-    if (error) res.status(500).json({ error });
-    res.json(data);
+    try {
+      // Get all allowed domains for the project
+      const { data: allowedDomains, error } = await supabase
+        .from('allowed_domains')
+        .select()
+        .eq('project_id', projectId);
+
+      if (error) {
+        console.error('Error fetching allowed domains:', error);
+        return res
+          .status(500)
+          .json({ error: 'Failed to fetch allowed domains' });
+      }
+
+      // Normalize the incoming domain
+      const normalizedRequestDomain = normalizeDomain(domain);
+
+      // Filter domains that match either directly or as a subdomain
+      const matchingDomains = allowedDomains?.filter(allowedDomain =>
+        isSubdomainOf(normalizedRequestDomain, allowedDomain.domain),
+      );
+
+      console.log({
+        requestDomain: domain,
+        normalizedDomain: normalizedRequestDomain,
+        projectId,
+        matchingDomains,
+      });
+
+      res.json(matchingDomains || []);
+    } catch (error) {
+      console.error('Error processing allowed domains request:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   },
 );
 
