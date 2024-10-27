@@ -61,9 +61,13 @@
       }
     },
     isPreviewDomain: function (origin) {
-      const strippedOrigin = origin.replace(/^(https?:\/\/)/, '');
+      const strippedOrigin = origin
+        .replace(/^(https?:\/\/)/, '')
+        .replace(/\/$/, ''); // Remove protocol and trailing slash
       const allowedDomain = this.allowedDomains.find(domain => {
-        const strippedDomain = domain.replace(/^(https?:\/\/)/, '');
+        const strippedDomain = domain
+          .replace(/^(https?:\/\/)/, '')
+          .replace(/\/$/, ''); // Remove protocol and trailing slash
         const regex = new RegExp(`^[\\w-]+\\.${strippedDomain}$`);
         return regex.test(strippedOrigin);
       });
