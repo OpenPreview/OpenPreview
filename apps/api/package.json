@@ -22,7 +22,8 @@
     "jsonwebtoken": "^9.0.2",
     "monk": "^7.3.3",
     "morgan": "^1.10.0",
-    "nodenv": "^0.1.0"
+    "nodenv": "^0.1.0",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "eslint": "^7.31.0",

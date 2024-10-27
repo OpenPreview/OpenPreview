@@ -163,10 +163,21 @@ app.get(
   authenticate,
   checkProjectAccess,
   async (req: AuthenticatedRequest, res: Response) => {
+    const domain = req.header('X-Domain');
+    const projectId = req.header('X-Project-ID');
+
+    if (!projectId || !domain) {
+      return res
+        .status(400)
+        .json({ error: 'Project ID and Domain is required' });
+    }
+
     const { data, error } = await supabase
       .from('allowed_domains')
       .select()
-      .eq('project_id', req.project!.id);
+      .eq('project_id', projectId)
+      .eq('domain', domain);
+    console.log(data, domain, projectId);
     if (error) res.status(500).json({ error });
     res.json(data);
   },
@@ -215,7 +226,7 @@ app.get(
     const domain = req.header('X-Domain');
     const projectId = req.header('X-Project-ID');
 
-    if (!projectId) {
+    if (!projectId || !domain) {
       return res.status(400).json({ error: 'Project ID is required' });
     }
 
@@ -223,6 +234,7 @@ app.get(
       'get_comments_with_replies',
       {
         project_id: projectId,
+        url: domain,
       },
     )) as { data: CommentWithReplies[] | null; error: any };
 
@@ -241,7 +253,6 @@ app.get(
           return commentDomain.hostname === targetDomain.hostname;
         })
       : comments;
-
     res.json(filteredComments);
   },
 );
@@ -576,6 +587,7 @@ wss.on('connection', (ws: WebSocket) => {
   authWs.on('message', async (message: string) => {
     try {
       const data = JSON.parse(message);
+
       if (data.type !== 'ping')
         console.log('Received WebSocket message:', data);
 
@@ -583,7 +595,7 @@ wss.on('connection', (ws: WebSocket) => {
         console.log(wss.clients.size, 'COmemtmet');
         console.log(data.projectid, data.url);
         authWs.projectId = data.projectId;
-        authWs.customUrl = data.url; // Changed from 'url' to 'customUrl'
+        authWs.customUrl = data.url;
       } else if (data.type === 'newComment') {
         if (!authWs.user) {
           authWs.send(
@@ -703,12 +715,14 @@ wss.on('connection', (ws: WebSocket) => {
         authWs.send(
           JSON.stringify({
             type: 'ping',
-            message: 'pong',
+            status:
+              authWs.projectId === data.projectId &&
+              authWs.customUrl === data.url,
           }),
         );
       }
     } catch (error) {
-      console.error('Error processing WebSocket message:', error);
+      console.log('Error processing WebSocket message:', error);
     }
   });
 
@@ -769,3 +783,13 @@ const port = process.env.API_PORT || 3003;
 server.listen(port, () => {
   console.log(`> Ready on http://localhost:${port}`);
 });
+
+// Clean up WebSocket connections
+setInterval(() => {
+  wss.clients.forEach((client: WebSocket) => {
+    if (client.readyState !== WebSocket.OPEN) {
+      client.terminate();
+      console.log('Terminated inactive WebSocket connection');
+    }
+  });
+}, 30000);

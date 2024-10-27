@@ -1,0 +1,20 @@
+{
+  "name": "@openpreview/publish",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN <https://github.com/OpenPreview/OpenPreview/blob/main/LICENSE>",
+  "scripts": {
+    "publish": "pnpm dlx ts-node publish.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "arg": "^5.0.2",
+    "semver": "^7.5.4"
+  },
+  "devDependencies": {
+    "@openpreview/tsconfig": "*",
+    "@types/node": "^18.16.0",
+    "@types/semver": "^7.5.4",
+    "typescript": "^5.2.2"
+  }
+}

@@ -1,5 +1,5 @@
 try {
-  (function() {
+  (function () {
     console.log('OpenPreview script starting execution');
 
     // Main OpenPreview object
@@ -10,7 +10,7 @@ try {
       toolbar: null,
       comments: [],
 
-      init: function(config) {
+      init: function (config) {
         console.log('OpenPreview initializing...'); // Debug log
         this.clientId = config.clientId;
         this.createToolbar();
@@ -18,7 +18,7 @@ try {
         this.setupEventListeners();
       },
 
-      createToolbar: function() {
+      createToolbar: function () {
         console.log('Creating toolbar...'); // Debug log
         this.toolbar = document.createElement('div');
         this.toolbar.id = 'opv-toolbar';
@@ -44,10 +44,14 @@ try {
         // Load Font Awesome
         const fontAwesome = document.createElement('link');
         fontAwesome.rel = 'stylesheet';
-        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css';
+        fontAwesome.href =
+          'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css';
         document.head.appendChild(fontAwesome);
 
-        const addCommentBtn = this.createButton('fas fa-comment', 'Add Comment');
+        const addCommentBtn = this.createButton(
+          'fas fa-comment',
+          'Add Comment',
+        );
         const loginBtn = this.createButton('fas fa-sign-in-alt', 'Login');
 
         this.toolbar.appendChild(addCommentBtn);
@@ -68,14 +72,16 @@ try {
 
         // Add hover effect to the toolbar
         this.toolbar.addEventListener('mouseenter', () => {
-          this.toolbar.style.backgroundColor = 'rgba(56, 67, 106, 0.2) !important';
+          this.toolbar.style.backgroundColor =
+            'rgba(56, 67, 106, 0.2) !important';
         });
         this.toolbar.addEventListener('mouseleave', () => {
-          this.toolbar.style.backgroundColor = 'rgba(56, 67, 106, 0.1) !important';
+          this.toolbar.style.backgroundColor =
+            'rgba(56, 67, 106, 0.1) !important';
         });
       },
 
-      createButton: function(iconClass, title) {
+      createButton: function (iconClass, title) {
         const btn = document.createElement('button');
         btn.innerHTML = `<i class="${iconClass}"></i>`;
         btn.title = title;
@@ -107,8 +113,11 @@ try {
         return btn;
       },
 
-      makeDraggable: function(element) {
-        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+      makeDraggable: function (element) {
+        let pos1 = 0,
+          pos2 = 0,
+          pos3 = 0,
+          pos4 = 0;
         element.style.cursor = 'move';
         element.onmousedown = dragMouseDown;
 
@@ -128,8 +137,8 @@ try {
           pos2 = pos4 - e.clientY;
           pos3 = e.clientX;
           pos4 = e.clientY;
-          element.style.top = (element.offsetTop - pos2) + "px";
-          element.style.left = (element.offsetLeft - pos1) + "px";
+          element.style.top = element.offsetTop - pos2 + 'px';
+          element.style.left = element.offsetLeft - pos1 + 'px';
           element.style.bottom = 'auto';
           element.style.transform = 'none';
         }
@@ -140,21 +149,21 @@ try {
         }
       },
 
-      setupEventListeners: function() {
+      setupEventListeners: function () {
         const addCommentBtn = this.toolbar.querySelector('button:first-child');
         const loginBtn = this.toolbar.querySelector('button:last-child');
 
         addCommentBtn.addEventListener('click', () => this.addComment());
         loginBtn.addEventListener('click', () => this.login());
 
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', e => {
           if (e.target.classList.contains('opv-comment-marker')) {
             this.showCommentDetails(e.target.dataset.commentId);
           }
         });
       },
 
-      addComment: function() {
+      addComment: function () {
         if (!this.token) {
           alert('Please login to add a comment');
           return;
@@ -169,31 +178,31 @@ try {
         this.saveComment(commentText, x, y);
       },
 
-      saveComment: function(text, x, y) {
+      saveComment: function (text, x, y) {
         fetch(`${this.apiUrl}/comments`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.token}`,
+            Authorization: `Bearer ${this.token}`,
             'X-Project-ID': this.clientId,
-            'X-Domain': window.location.hostname
+            'X-Domain': window.location.hostname,
           },
           body: JSON.stringify({
             text,
             x,
             y,
-            url: window.location.href
+            url: window.location.href,
+          }),
+        })
+          .then(response => response.json())
+          .then(comment => {
+            this.comments.push(comment);
+            this.renderComment(comment);
           })
-        })
-        .then(response => response.json())
-        .then(comment => {
-          this.comments.push(comment);
-          this.renderComment(comment);
-        })
-        .catch(error => console.error('Error saving comment:', error));
+          .catch(error => console.error('Error saving comment:', error));
       },
 
-      renderComment: function(comment) {
+      renderComment: function (comment) {
         const marker = document.createElement('div');
         marker.classList.add('opv-comment-marker');
         marker.dataset.commentId = comment.id;
@@ -210,76 +219,83 @@ try {
         document.body.appendChild(marker);
       },
 
-      showCommentDetails: function(commentId) {
+      showCommentDetails: function (commentId) {
         const comment = this.comments.find(c => c.id === commentId);
         if (comment) {
           alert(`Comment: ${comment.content}`);
         }
       },
 
-      loadComments: function() {
-        fetch(`${this.apiUrl}/comments?url=${encodeURIComponent(window.location.href)}`, {
-          headers: {
-            'Authorization': `Bearer ${this.token}`,
-            'X-Project-ID': this.clientId,
-            'X-Domain': window.location.hostname
-          }
-        })
-        .then(response => response.json())
-        .then(comments => {
-          this.comments = comments;
-          comments.forEach(comment => this.renderComment(comment));
-        })
-        .catch(error => console.error('Error loading comments:', error));
+      loadComments: function () {
+        fetch(
+          `${this.apiUrl}/comments?url=${encodeURIComponent(window.location.href)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${this.token}`,
+              'X-Project-ID': this.clientId,
+              'X-Domain': window.location.hostname,
+            },
+          },
+        )
+          .then(response => response.json())
+          .then(comments => {
+            this.comments = comments;
+            comments.forEach(comment => this.renderComment(comment));
+          })
+          .catch(error => console.error('Error loading comments:', error));
       },
 
-      login: function() {
+      login: function () {
         fetch(`${this.apiUrl}/auth/login/init`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             projectId: this.clientId,
-            redirectUrl: window.location.href
+            redirectUrl: window.location.href,
+          }),
+        })
+          .then(response => response.json())
+          .then(data => {
+            const loginWindow = window.open(
+              data.loginUrl,
+              'OpenPreview Login',
+              'width=600,height=600',
+            );
+            window.addEventListener('message', event => {
+              if (event.origin !== this.apiUrl) return;
+              if (event.data.type === 'LOGIN_SUCCESS') {
+                loginWindow.close();
+                this.verifyLogin(event.data.authCode);
+              }
+            });
           })
-        })
-        .then(response => response.json())
-        .then(data => {
-          const loginWindow = window.open(data.loginUrl, 'OpenPreview Login', 'width=600,height=600');
-          window.addEventListener('message', (event) => {
-            if (event.origin !== this.apiUrl) return;
-            if (event.data.type === 'LOGIN_SUCCESS') {
-              loginWindow.close();
-              this.verifyLogin(event.data.authCode);
-            }
-          });
-        })
-        .catch(error => console.error('Error initiating login:', error));
+          .catch(error => console.error('Error initiating login:', error));
       },
 
-      verifyLogin: function(authCode) {
+      verifyLogin: function (authCode) {
         fetch(`${this.apiUrl}/auth/login/verify`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ authCode })
+          body: JSON.stringify({ authCode }),
         })
-        .then(response => response.json())
-        .then(data => {
-          this.token = data.token;
-          alert('Login successful!');
-          this.loadComments();
-        })
-        .catch(error => console.error('Error verifying login:', error));
-      }
+          .then(response => response.json())
+          .then(data => {
+            this.token = data.token;
+            alert('Login successful!');
+            this.loadComments();
+          })
+          .catch(error => console.error('Error verifying login:', error));
+      },
     };
 
     // Initialize OpenPreview immediately
     console.log('Initializing OpenPreview');
     OpenPreview.init({
-      clientId: window.opvClientId // We'll set this in the HTML
+      clientId: window.opvProjectId, // We'll set this in the HTML
     });
 
     // Expose OpenPreview to the global scope if needed
