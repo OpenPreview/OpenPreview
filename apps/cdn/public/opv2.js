@@ -132,7 +132,7 @@
             this.token = this.getCookie('opv_token');
             this.updateLoginState(); // Update toolbar based on logged-in state
             this.loadComments(); // Load comments if authenticated
-
+            this.initializeComponents();
             // Do not close or reinitialize WebSocket if already connected
             if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
               this.initWebSocket();
