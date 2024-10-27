@@ -122,6 +122,7 @@
       }
       if (this.isInitialized) {
         console.log('OpenPreview already initialized', config);
+        this.createToolbar();
         this.loadComments();
 
         // Do not close or reinitialize WebSocket if already connected
