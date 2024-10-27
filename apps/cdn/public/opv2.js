@@ -161,8 +161,6 @@
           this.ws.close();
         }
       });
-      const weborigin = window.location.origin;
-      console.log('Origin allowed');
 
       // Verify the token first
       this.verifyToken().then(isValid => {
@@ -194,6 +192,7 @@
         } else {
           console.log('Token verification failed or no token found');
           this.token = null;
+          this.createToolbar();
         }
       });
 
@@ -248,7 +247,6 @@
       }
     },
     initializeComponents: function () {
-      this.createToolbar();
       this.createCommentForm();
       this.createCommentsList();
       this.updateEyeIcon();
