@@ -43,7 +43,6 @@ async function fetchAllowedDomains(): Promise<string[]> {
   return data ? data.map(entry => entry.domain) : [];
 }
 
-// Configure CORS with dynamic domains from Supabase
 const corsOptions: cors.CorsOptions = {
   origin: async function (
     origin: string | undefined,
@@ -51,14 +50,26 @@ const corsOptions: cors.CorsOptions = {
   ) {
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = await fetchAllowedDomains();
-    if (
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.openpreview.dev')
-    ) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    try {
+      const allowedOrigins = await fetchAllowedDomains();
+      const sanitizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
+
+      // Check if the sanitized origin matches directly or as a subdomain of any allowed domain
+      const isAllowed =
+        allowedOrigins.some(
+          allowedDomain =>
+            sanitizedOrigin === allowedDomain ||
+            sanitizedOrigin.endsWith(`.${allowedDomain.replace(/\/$/, '')}`),
+        ) || sanitizedOrigin.endsWith('.openpreview.dev');
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    } catch (error) {
+      console.error('Error fetching allowed domains for CORS:', error);
+      callback(new Error('Error configuring CORS'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
