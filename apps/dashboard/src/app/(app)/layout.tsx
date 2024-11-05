@@ -7,7 +7,7 @@ import {
   SidebarProvider,
   SidebarInset,
 } from '@openpreview/ui/components/sidebar';
-import { AppSidebar } from '@openpreview/ui/components/sidebar/app-sidebar';
+import { AppSidebar } from 'src/components/sidebar/app-sidebar';
 import { fetchOrganizations } from '@openpreview/db/hooks/fetchOrganizations';
 import { useUser } from '@openpreview/db/hooks/useUser/server';
 
@@ -37,7 +37,7 @@ export default async function AppLayout({
           user={{
             name: user?.name,
             email: user?.email,
-            avatar: user?.avatar_url,
+            avatar_url: user?.avatar_url,
           }}
         />
 

@@ -30,8 +30,7 @@
     fetchAllowedDomains: async function () {
       const token = this.token || this.getCookie('opv_token');
 
-      if (!token) {
-        console.log('No token available, please log in');
+      if (!token && window.location.origin.includes('http://localhost:')) {
         return;
       }
 
@@ -44,7 +43,7 @@
             'X-Domain': window.location.origin,
           },
         });
-        console.log(res);
+
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -446,7 +445,7 @@
         // Set ws to null to avoid creating multiple WebSocket instances
         this.ws = null;
         this.updateConnectionStatus(false);
-
+        if (!this.user) return 
         // Only reconnect if there's no active WebSocket
         if (this.maxRetries > 0 && !this.ws) {
           setTimeout(() => {

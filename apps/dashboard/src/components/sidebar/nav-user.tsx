@@ -30,6 +30,16 @@ import {
   useSidebar,
 } from '@openpreview/ui/components/sidebar';
 import { useEffect, useState } from 'react';
+
+function isValidUrl(str: string) {
+  try {
+    new URL(str);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 export function NavUser({
   user,
 }: {
@@ -45,7 +55,7 @@ export function NavUser({
   useEffect(() => {
     let objectUrl: string | null = null;
     const fetchAvatar = async () => {
-      if (new URL(user.avatar_url ?? '')) {
+      if (!isValidUrl(user.avatar_url ?? '')) {
         try {
           const response = await fetch('/api/avatar');
           console.log(response);
@@ -91,7 +101,7 @@ export function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
+              <Avatar className="h-8 w-8 rounded">
                 <AvatarImage src={avatarUrl || undefined} alt={user.name} />
                 <AvatarFallback className="rounded-lg">
                   {initials}

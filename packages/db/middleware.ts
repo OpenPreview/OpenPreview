@@ -36,8 +36,8 @@ export async function updateSession(request: NextRequest, app: 'web' | 'dashboar
     data: { user },
   } = await supabase.auth.getUser()
   if (app === 'dashboard') {
-  if (
-    !user &&
+    if (
+      !user &&
       !request.nextUrl.pathname.startsWith('/login') &&
       !request.nextUrl.pathname.startsWith('/register') &&
       !request.nextUrl.pathname.startsWith('/auth/confirm') &&
