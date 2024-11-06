@@ -180,7 +180,7 @@
         }
       });
 
-      if (new URL(location.href).searchParams.get('opv_user_id')) {
+      if (new URL(location.href).searchParams.get('opv_user_id') && !this.token) {
         const sP = new URLSearchParams(new URL(location.href).search)
         sP.delete('opv_user_id')
         this.createToolbar(); 
