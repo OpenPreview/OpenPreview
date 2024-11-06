@@ -1,4 +1,5 @@
 import { useUser } from '@openpreview/db/hooks/useUser/server';
+import { createClient } from '@openpreview/db/server';
 import { Button } from '@openpreview/ui/components/button';
 import {
   Card,
@@ -6,8 +7,24 @@ import {
   CardHeader,
   CardTitle,
 } from '@openpreview/ui/components/card';
-import { ArrowLeft, MessageSquare } from 'lucide-react';
+import { ArrowLeft, MessageSquare, SquareArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+
+async function getProjectSettings(projectSlug: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('projects')
+    .select('name, slug, allowed_domains(domain)')
+    .eq('slug', projectSlug)
+    .single();
+
+  if (error) {
+    console.error('Error fetching project settings:', error);
+    throw new Error(error.message || 'Failed to fetch project settings');
+  }
+
+  return data;
+}
 
 export default async function ProjectDashboard({
   params,
@@ -15,6 +32,8 @@ export default async function ProjectDashboard({
   params: { organizationSlug: string; projectSlug: string };
 }) {
   const { user } = await useUser();
+  const projectSettings = await getProjectSettings(params.projectSlug);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -24,6 +43,15 @@ export default async function ProjectDashboard({
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Projects
           </Button>
         </Link>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {projectSettings.allowed_domains.map(({ domain }) => (
+          <Link href={`${domain}/?opv_user_id=${user.id}`}>
+            Go to{' '}
+            <span className="text-blue-400">{new URL(domain).hostname}</span>
+            <SquareArrowUpRight className="ml-2 h-4 w-4" />
+          </Link>
+        ))}
       </div>
       <p className="text-gray-600">
         Organization: {params.organizationSlug}, Project: {params.projectSlug}

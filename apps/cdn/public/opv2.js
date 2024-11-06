@@ -180,6 +180,12 @@
         }
       });
 
+      if (new URL(location.href).searchParams.get('opv_user_id')) {
+        const sP = new URLSearchParams(new URL(location.href).search)
+        sP.delete('opv_user_id')
+        this.createToolbar(); 
+      } else if (!this.token) return
+
       // Verify the token first
       this.verifyToken().then(isValid => {
         if (isValid) {
@@ -234,7 +240,7 @@
     },
     //#endregion
 
-    login: async function () {
+     login: async function () {
       const width = 500;
       const height = 600;
       const left = window.screen.width / 2 - width / 2;
