@@ -35,6 +35,6 @@
     "@openpreview/supabase": "*",
     "@types/express": "^4.17.21",
     "@types/morgan": "^1.9.9",
-    "typescript": "^5.4.2"
+    "typescript": "^5.7.2"
   }
 }
