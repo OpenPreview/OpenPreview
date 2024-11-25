@@ -17,7 +17,7 @@
     "@types/bun": "latest",
     "@types/react": "^18.3.12",
     "tsup": "^8.3.5",
-    "typescript": "^5.6.3"
+    "typescript": "^5.7.2"
   },
   "description": "The @openpreview/nextjs SDK integrates OpenPreview's collaborative comments and project management tools into Next.js applications for seamless team collaboration and streamlined development.",
   "main": "./dist/index.js",
